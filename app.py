@@ -192,7 +192,7 @@ with tab3:
     with c2:
         # Dynamic options based on source
         if source_type == "NFA":
-            target_options = ["DFA"]
+            target_options = ["DFA", "Regex"]
         elif source_type == "DFA":
             target_options = ["Regex", "Minimized DFA"]
         elif source_type == "Regex":
@@ -244,21 +244,33 @@ with tab3:
         edited_df = st.data_editor(st.session_state.trans_df, use_container_width=True)
 
         # Load Example Button
-        if st.button("Load Example"):
+        def load_example_callback():
             if source_type == "NFA":
-                # Example: NFA ending in 01
-                example_states = ["q0", "q1", "q2"]
+                # Example: Infinite NFA (0-9)
+                example_states = [str(i) for i in range(10)]
                 example_alphabet = ["0", "1"]
+
+                # Helper to format set of states for the table (comma separated)
+                def fmt(s): return ", ".join(sorted(list(s))) if s else ""
+
                 data = {
-                    "0": ["q0, q1", "", ""],
-                    "1": ["q0", "q2", ""]
+                    "0": [fmt({'1', '2'}), fmt({'6', '7'})],
+                    "1": [fmt({'1', '3'}), fmt({'2'})],
+                    "2": [fmt({'6', '7'}), fmt({'3'})],
+                    "3": [fmt({'8', '9'}), fmt({'1'})],
+                    "4": [fmt({'5', '6'}), fmt({'0'})],
+                    "5": [fmt({'7', '8'}), fmt({'0'})],
+                    "6": [fmt({'4'}),      fmt({'6'})],
+                    "7": [fmt({'5'}),      fmt({'1'})],
+                    "8": [fmt({'4', '7'}), fmt({'3'})],
+                    "9": [fmt({'1', '6'}), fmt({'1'})]
                 }
 
-                # Update UI state
                 st.session_state.states_input = ", ".join(example_states)
                 st.session_state.alphabet_input = ", ".join(example_alphabet)
                 st.session_state.trans_df = pd.DataFrame(data, index=example_states, columns=example_alphabet)
-                st.rerun()
+
+        st.button("Load Example", on_click=load_example_callback)
 
     elif source_type == "Regex":
         st.subheader("Define Regex")
@@ -289,6 +301,11 @@ with tab3:
 
                 if target_type == "DFA":
                     result_obj = handler.nfa_to_dfa(nfa)
+                elif target_type == "Regex":
+                    # NFA -> DFA -> Regex
+                    temp_dfa = handler.nfa_to_dfa(nfa)
+                    result_str = handler.dfa_to_regex(temp_dfa)
+                    st.success(f"Generated Regex: `{result_str}`")
 
             elif source_type == "DFA":
                 # Parse Table
