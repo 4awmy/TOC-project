@@ -5,22 +5,26 @@ from logic import LanguageProcessor
 
 # Page Config
 st.set_page_config(
-    page_title="Theory of Computation AI",
-    page_icon="🤖",
+    page_title="Automata & Formal Language Studio",
+    page_icon="📐",
     layout="wide"
 )
 
 # Title
-st.title("🤖 Theory of Computation AI Tool")
+st.title("📐 Automata & Formal Language Studio")
+
+# WARNING: It is generally not safe to hardcode API keys in code.
+# Consider using environment variables for production.
+DEFAULT_API_KEY = "AIzaSyBDy5DRKmEiofL1w6xPEhRGeCFZsqiJ7pc"
 
 # Sidebar for API Key
 with st.sidebar:
     st.header("Settings")
 
-    # Check if key is in env
-    env_key = os.environ.get("GOOGLE_API_KEY", "")
+    # Check if key is in env, otherwise use default
+    current_key = os.environ.get("GOOGLE_API_KEY", DEFAULT_API_KEY)
 
-    api_key = st.text_input("Google API Key", value=env_key, type="password")
+    api_key = st.text_input("Google API Key", value=current_key, type="password")
 
     if api_key:
         os.environ["GOOGLE_API_KEY"] = api_key
@@ -39,7 +43,7 @@ if "history" not in st.session_state:
 processor = st.session_state.processor
 
 # Main Content
-tab1, tab2 = st.tabs(["Define & Test Language", "Batch Testing"])
+tab1, tab2, tab3 = st.tabs(["Define & Test Language", "Batch Testing", "Automata Operations"])
 
 with tab1:
     st.header("Define a Language")
@@ -175,3 +179,36 @@ with tab2:
                     progress_bar.progress((i + 1) / len(strings_to_test))
 
                 st.table(pd.DataFrame(results))
+
+with tab3:
+    st.header("Automata Operations")
+    st.markdown("Perform operations like conversion and minimization on automata.")
+
+    col_a, col_b = st.columns([2, 1])
+
+    with col_a:
+        automaton_desc = st.text_area(
+            "Describe your Automaton",
+            placeholder="e.g. NFA with states {q0, q1}, start q0, final {q1}. Transitions: q0-0->q0, q0-0->q1, q1-1->q1...",
+            height=200
+        )
+
+    with col_b:
+        operation = st.selectbox(
+            "Select Operation",
+            ["NFA to DFA", "NFA to Regex", "DFA Minimization"]
+        )
+        run_op_btn = st.button("Perform Operation", type="primary")
+
+    if run_op_btn and automaton_desc:
+        if not api_key:
+            st.error("Please provide a Google API Key in the sidebar.")
+        else:
+             with st.spinner(f"Performing {operation}..."):
+                # Ensure key is set
+                processor.ai.configure_api(api_key)
+
+                result = processor.process_automaton(automaton_desc, operation)
+
+                st.subheader("Result")
+                st.markdown(result)

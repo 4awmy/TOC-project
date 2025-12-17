@@ -57,6 +57,33 @@ class AIHandler:
         """
         return self._get_json_response(prompt)
 
+    def perform_automaton_operation(self, description: str, operation: str) -> str:
+        """
+        Performs an operation on an automaton description.
+        operations: "NFA to DFA", "NFA to Regex", "DFA Minimization"
+        """
+        if not self.ready:
+            return "API Key missing."
+
+        prompt = f"""
+        I have the following automaton description:
+        "{description}"
+
+        Please perform the following task: {operation}.
+
+        Provide the result clearly.
+        - If converting to DFA, provide the transition table and set of accepting states.
+        - If converting to Regex, provide the final regular expression.
+        - If minimizing a DFA, provide the minimized transition table and diagram description if possible.
+
+        Explain your steps briefly.
+        """
+        try:
+            response = self.model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            return f"Error performing operation: {e}"
+
     def explain_rejection(self, description: str, string: str) -> str:
         """
         Explains why a string is rejected by a Regular language.
