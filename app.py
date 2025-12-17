@@ -186,6 +186,10 @@ with tab3:
     st.header("Automata Converter")
     st.markdown("Convert between NFA, DFA, and Regex using deterministic algorithms.")
 
+    # Initialize session state for the converted DFA
+    if "converted_dfa" not in st.session_state:
+        st.session_state.converted_dfa = None
+
     # 1. Converter Selection
     c1, c2 = st.columns(2)
     with c1:
@@ -279,8 +283,8 @@ with tab3:
 
     # 3. Action
     if st.button(f"Convert {source_type} -> {target_type}", type="primary"):
+        st.session_state.converted_dfa = None # Reset on any new conversion attempt
         try:
-            result_obj = None
             handler = AutomataHandler()
 
             if source_type == "NFA":
@@ -300,10 +304,7 @@ with tab3:
 
                 if target_type == "DFA":
                     result_obj = handler.nfa_to_dfa(nfa)
-                    # Display Table
-                    st.subheader("Transition Table (DFA)")
-                    st.table(handler.get_dfa_table(result_obj))
-
+                    st.session_state.converted_dfa = result_obj # Store for minimization option
                 elif target_type == "Regex":
                     # NFA -> DFA -> Regex
                     temp_dfa = handler.nfa_to_dfa(nfa)
@@ -320,22 +321,13 @@ with tab3:
                         if target.strip():
                              transitions[state][symbol] = target.strip()
                         else:
-                            # DFA must be complete usually, or we assume trap state?
-                            # Automata-lib DFA requires complete transitions usually
                             pass
 
                 dfa = handler.create_dfa(states, alphabet, transitions, start_state, final_states_sel)
 
                 if target_type == "Minimized DFA":
-                    result_obj, steps = handler.minimize_dfa_with_steps(dfa)
-
-                    st.subheader("Minimization Steps")
-                    for step in steps:
-                        st.text(step)
-
-                    st.subheader("Minimized Transition Table")
-                    st.table(handler.get_dfa_table(result_obj))
-
+                    minimized_dfa, steps = handler.minimize_dfa_with_steps(dfa)
+                    st.session_state.converted_dfa = minimized_dfa
                 elif target_type == "Regex":
                     result_str = handler.dfa_to_regex(dfa)
                     st.success(f"Generated Regex: `{result_str}`")
@@ -343,19 +335,53 @@ with tab3:
             elif source_type == "Regex":
                 if target_type == "NFA":
                     result_obj = handler.regex_to_nfa(regex_input)
-
-            # Display Result Object (if it's an automaton)
-            if result_obj is not None:
-                st.success("Conversion Successful!")
-
-                # Visualization
-                try:
-                    dot = handler.get_graphviz_source(result_obj)
-                    st.graphviz_chart(dot.source)
-                except Exception as e:
-                    st.warning(f"Visualization failed: {e}")
-                    # Fallback text representation
-                    st.text(str(result_obj.transitions))
+                    st.session_state.converted_dfa = result_obj
 
         except Exception as e:
             st.error(f"Error: {e}")
+
+    # Display Result Object (if it's an automaton)
+    if st.session_state.get("converted_dfa"):
+        st.success("Conversion Successful!")
+        result_obj = st.session_state.converted_dfa
+
+        if isinstance(result_obj, DFA):
+            st.subheader("Transition Table (DFA)")
+            st.table(handler.get_dfa_table(result_obj))
+
+        # Visualization
+        try:
+            dot = handler.get_graphviz_source(result_obj)
+            st.graphviz_chart(dot.source)
+        except Exception as e:
+            st.warning(f"Visualization failed: {e}")
+            st.text(str(result_obj.transitions))
+
+        # Option to minimize the newly created DFA
+        if isinstance(result_obj, DFA):
+            st.divider()
+            st.markdown("### Minimize the Result")
+            if st.button("Minimize this DFA", type="primary"):
+                handler = AutomataHandler()
+                dfa_to_minimize = st.session_state.converted_dfa
+
+                with st.spinner("Minimizing..."):
+                    minimized_dfa, steps = handler.minimize_dfa_with_steps(dfa_to_minimize)
+
+                    st.subheader("Minimization Steps (Moore's Algorithm)")
+                    for step in steps:
+                        st.text(step)
+
+                    st.subheader("Minimized Transition Table")
+                    st.table(handler.get_dfa_table(minimized_dfa))
+
+                    st.subheader("Minimized DFA Diagram")
+                    try:
+                        dot = handler.get_graphviz_source(minimized_dfa)
+                        st.graphviz_chart(dot.source)
+                    except Exception as e:
+                        st.warning(f"Visualization failed: {e}")
+                        st.text(str(minimized_dfa.transitions))
+
+                # Clear the state to hide this section after it's been used
+                st.session_state.converted_dfa = None
