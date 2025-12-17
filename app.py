@@ -180,35 +180,154 @@ with tab2:
 
                 st.table(pd.DataFrame(results))
 
+
 with tab3:
-    st.header("Automata Operations")
-    st.markdown("Perform operations like conversion and minimization on automata.")
+    st.header("Automata Converter")
+    st.markdown("Convert between NFA, DFA, and Regex using deterministic algorithms.")
 
-    col_a, col_b = st.columns([2, 1])
+    # 1. Converter Selection
+    c1, c2 = st.columns(2)
+    with c1:
+        source_type = st.selectbox("From", ["NFA", "DFA", "Regex"])
+    with c2:
+        # Dynamic options based on source
+        if source_type == "NFA":
+            target_options = ["DFA"]
+        elif source_type == "DFA":
+            target_options = ["Regex", "Minimized DFA"]
+        elif source_type == "Regex":
+            target_options = ["NFA"]
 
-    with col_a:
-        automaton_desc = st.text_area(
-            "Describe your Automaton",
-            placeholder="e.g. NFA with states {q0, q1}, start q0, final {q1}. Transitions: q0-0->q0, q0-0->q1, q1-1->q1...",
-            height=200
-        )
+        target_type = st.selectbox("To", target_options)
 
-    with col_b:
-        operation = st.selectbox(
-            "Select Operation",
-            ["NFA to DFA", "NFA to Regex", "DFA Minimization"]
-        )
-        run_op_btn = st.button("Perform Operation", type="primary")
+    st.divider()
 
-    if run_op_btn and automaton_desc:
-        if not api_key:
-            st.error("Please provide a Google API Key in the sidebar.")
+    # 2. Input Section
+    from automata_logic import AutomataHandler
+
+    if source_type in ["NFA", "DFA"]:
+        st.subheader(f"Define {source_type}")
+
+        # State & Alphabet Config
+        col_conf1, col_conf2 = st.columns(2)
+        with col_conf1:
+            # Initialize default values in session state if not present
+            if "states_input" not in st.session_state:
+                st.session_state.states_input = "q0, q1, q2"
+            if "alphabet_input" not in st.session_state:
+                st.session_state.alphabet_input = "0, 1"
+
+            states_str = st.text_input("States (comma separated)", key="states_input")
+            alphabet_str = st.text_input("Alphabet (comma separated)", key="alphabet_input")
+
+        states = [s.strip() for s in states_str.split(",") if s.strip()]
+        alphabet = [s.strip() for s in alphabet_str.split(",") if s.strip()]
+
+        with col_conf2:
+            start_state = st.selectbox("Start State", states)
+            final_states_sel = st.multiselect("Final States", states)
+
+        # Transition Table Editor
+        st.markdown("### Transition Table")
+        st.caption("For NFA, enter multiple states separated by commas (e.g. 'q0, q1'). Use '{}' for empty.")
+
+        # Initialize dataframe for transitions
+        # Rows = States, Cols = Alphabet
+        if "trans_df" not in st.session_state:
+             st.session_state.trans_df = pd.DataFrame("", index=states, columns=alphabet)
         else:
-             with st.spinner(f"Performing {operation}..."):
-                # Ensure key is set
-                processor.ai.configure_api(api_key)
+            # Update index/cols if changed
+            if not st.session_state.trans_df.index.equals(pd.Index(states)) or \
+               not st.session_state.trans_df.columns.equals(pd.Index(alphabet)):
+                st.session_state.trans_df = pd.DataFrame("", index=states, columns=alphabet)
 
-                result = processor.process_automaton(automaton_desc, operation)
+        edited_df = st.data_editor(st.session_state.trans_df, use_container_width=True)
 
-                st.subheader("Result")
-                st.markdown(result)
+        # Load Example Button
+        if st.button("Load Example"):
+            if source_type == "NFA":
+                # Example: NFA ending in 01
+                example_states = ["q0", "q1", "q2"]
+                example_alphabet = ["0", "1"]
+                data = {
+                    "0": ["q0, q1", "", ""],
+                    "1": ["q0", "q2", ""]
+                }
+
+                # Update UI state
+                st.session_state.states_input = ", ".join(example_states)
+                st.session_state.alphabet_input = ", ".join(example_alphabet)
+                st.session_state.trans_df = pd.DataFrame(data, index=example_states, columns=example_alphabet)
+                st.rerun()
+
+    elif source_type == "Regex":
+        st.subheader("Define Regex")
+        regex_input = st.text_input("Regular Expression", "0*10*")
+
+    st.divider()
+
+    # 3. Action
+    if st.button(f"Convert {source_type} -> {target_type}", type="primary"):
+        try:
+            result_obj = None
+            handler = AutomataHandler()
+
+            if source_type == "NFA":
+                # Parse Table to Transitions Dict
+                transitions = {}
+                for state in states:
+                    transitions[state] = {}
+                    for symbol in alphabet:
+                        target_str = edited_df.loc[state, symbol]
+                        if target_str.strip() and target_str != "{}":
+                            targets = {t.strip() for t in target_str.split(',')}
+                            transitions[state][symbol] = targets
+                        else:
+                             transitions[state][symbol] = set() # Empty set
+
+                nfa = handler.create_nfa(states, alphabet, transitions, start_state, final_states_sel)
+
+                if target_type == "DFA":
+                    result_obj = handler.nfa_to_dfa(nfa)
+
+            elif source_type == "DFA":
+                # Parse Table
+                transitions = {}
+                for state in states:
+                    transitions[state] = {}
+                    for symbol in alphabet:
+                        target = edited_df.loc[state, symbol]
+                        if target.strip():
+                             transitions[state][symbol] = target.strip()
+                        else:
+                            # DFA must be complete usually, or we assume trap state?
+                            # Automata-lib DFA requires complete transitions usually
+                            pass
+
+                dfa = handler.create_dfa(states, alphabet, transitions, start_state, final_states_sel)
+
+                if target_type == "Minimized DFA":
+                    result_obj = handler.minimize_dfa(dfa)
+                elif target_type == "Regex":
+                    result_str = handler.dfa_to_regex(dfa)
+                    st.success(f"Generated Regex: `{result_str}`")
+
+            elif source_type == "Regex":
+                if target_type == "NFA":
+                    result_obj = handler.regex_to_nfa(regex_input)
+
+            # Display Result Object (if it's an automaton)
+            if result_obj:
+                st.success("Conversion Successful!")
+
+                # Visualization
+                try:
+                    dot = handler.get_graphviz_source(result_obj)
+                    st.graphviz_chart(dot.source)
+                except Exception as e:
+                    st.warning(f"Visualization failed: {e}")
+                    # Fallback text representation
+                    st.text(str(result_obj.transitions))
+
+        except Exception as e:
+            st.error(f"Error: {e}")

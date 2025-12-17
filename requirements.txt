@@ -2,3 +2,5 @@ google-generativeai
 rich
 streamlit
 pandas
+automata-lib
+graphviz

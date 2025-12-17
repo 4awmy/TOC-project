@@ -52,8 +52,3 @@ class LanguageProcessor:
         else:
             # Non-regular or no regex provided
             return self.ai.check_non_regular(self.current_description, string)
-
-    def process_automaton(self, description: str, operation: str):
-        if not self.ai.ready:
-            return "Error: API Key not set"
-        return self.ai.perform_automaton_operation(description, operation)
