@@ -10,11 +10,14 @@ class AIHandler:
             # We will handle missing key gracefully in the UI, but here we can warn or raise
             self.ready = False
         else:
-            genai.configure(api_key=api_key)
-            # Using 'gemini-flash-latest' as it was verified to work in this environment
-            # where 'gemini-1.5-flash' returned a 404 error.
-            self.model = genai.GenerativeModel('gemini-flash-latest')
-            self.ready = True
+            self.configure_api(api_key)
+
+    def configure_api(self, api_key: str):
+        genai.configure(api_key=api_key)
+        # Using 'gemini-flash-latest' as it was verified to work in this environment
+        # where 'gemini-1.5-flash' returned a 404 error.
+        self.model = genai.GenerativeModel('gemini-flash-latest')
+        self.ready = True
 
     def _get_json_response(self, prompt: str) -> dict:
         if not self.ready:
