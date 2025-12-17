@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import pandas as pd
 from logic import LanguageProcessor
+from automata_logic import AutomataHandler
 
 # Page Config
 st.set_page_config(
@@ -15,7 +16,7 @@ st.title("📐 Automata & Formal Language Studio")
 
 # WARNING: It is generally not safe to hardcode API keys in code.
 # Consider using environment variables for production.
-DEFAULT_API_KEY = "AIzaSyBDy5DRKmEiofL1w6xPEhRGeCFZsqiJ7pc"
+DEFAULT_API_KEY = ""
 
 # Sidebar for API Key
 with st.sidebar:
@@ -203,8 +204,6 @@ with tab3:
     st.divider()
 
     # 2. Input Section
-    from automata_logic import AutomataHandler
-
     if source_type in ["NFA", "DFA"]:
         st.subheader(f"Define {source_type}")
 
@@ -268,7 +267,7 @@ with tab3:
 
                 st.session_state.states_input = ", ".join(example_states)
                 st.session_state.alphabet_input = ", ".join(example_alphabet)
-                st.session_state.trans_df = pd.DataFrame(data, index=example_states, columns=example_alphabet)
+                st.session_state.trans_df = pd.DataFrame.from_dict(data, orient='index', columns=example_alphabet)
 
         st.button("Load Example", on_click=load_example_callback)
 
