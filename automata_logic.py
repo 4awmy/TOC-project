@@ -10,7 +10,6 @@ class AutomataHandler:
         Creates an NFA object.
         transitions: dict {state: {symbol: {target_states}}}
         """
-        # Ensure sets are used
         return NFA(
             states=set(states),
             input_symbols=set(alphabet),
@@ -53,6 +52,35 @@ class AutomataHandler:
     @staticmethod
     def get_graphviz_source(automaton):
         """
-        Returns the graphviz Source object for visualization.
+        Manually constructs a graphviz.Digraph object from the automaton.
+        This avoids dependency on pygraphviz/coloraide required by automaton.show_diagram().
         """
-        return automaton.show_diagram()
+        dot = graphviz.Digraph()
+        dot.attr(rankdir='LR')
+
+        # Add states
+        for state in automaton.states:
+            shape = 'doublecircle' if state in automaton.final_states else 'circle'
+            # Convert state to string safely (dfa states can be sets/tuples)
+            state_label = str(state)
+
+            # Start state indication
+            if state == automaton.initial_state:
+                dot.node('start', shape='point')
+                dot.edge('start', state_label)
+
+            dot.node(state_label, shape=shape)
+
+        # Add transitions
+        # NFA transitions: {state: {symbol: {targets}}}
+        # DFA transitions: {state: {symbol: target}}
+        for src, transitions in automaton.transitions.items():
+            src_label = str(src)
+            for symbol, target in transitions.items():
+                if isinstance(target, set): # NFA
+                    for t in target:
+                        dot.edge(src_label, str(t), label=symbol)
+                else: # DFA
+                    dot.edge(src_label, str(target), label=symbol)
+
+        return dot
