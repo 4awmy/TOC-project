@@ -5,7 +5,7 @@ import typing
 
 class AIHandler:
     def __init__(self):
-        api_key = os.environ.get("AIzaSyBDy5DRKmEiofL1w6xPEhRGeCFZsqiJ7pc")
+        api_key = os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             # We will handle missing key gracefully in the UI, but here we can warn or raise
             self.ready = False
