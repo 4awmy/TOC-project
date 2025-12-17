@@ -300,6 +300,10 @@ with tab3:
 
                 if target_type == "DFA":
                     result_obj = handler.nfa_to_dfa(nfa)
+                    # Display Table
+                    st.subheader("Transition Table (DFA)")
+                    st.table(handler.get_dfa_table(result_obj))
+
                 elif target_type == "Regex":
                     # NFA -> DFA -> Regex
                     temp_dfa = handler.nfa_to_dfa(nfa)
@@ -323,7 +327,15 @@ with tab3:
                 dfa = handler.create_dfa(states, alphabet, transitions, start_state, final_states_sel)
 
                 if target_type == "Minimized DFA":
-                    result_obj = handler.minimize_dfa(dfa)
+                    result_obj, steps = handler.minimize_dfa_with_steps(dfa)
+
+                    st.subheader("Minimization Steps")
+                    for step in steps:
+                        st.text(step)
+
+                    st.subheader("Minimized Transition Table")
+                    st.table(handler.get_dfa_table(result_obj))
+
                 elif target_type == "Regex":
                     result_str = handler.dfa_to_regex(dfa)
                     st.success(f"Generated Regex: `{result_str}`")
