@@ -317,7 +317,7 @@ with tab3:
                     result_obj = handler.regex_to_nfa(regex_input)
 
             # Display Result Object (if it's an automaton)
-            if result_obj:
+            if result_obj is not None:
                 st.success("Conversion Successful!")
 
                 # Visualization
