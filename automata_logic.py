@@ -34,8 +34,96 @@ class AutomataHandler:
         )
 
     @staticmethod
+    def _get_epsilon_closure(nfa_obj, states):
+        """
+        Computes the epsilon-closure for a set of NFA states.
+        This includes the initial states and all states reachable via epsilon transitions.
+        """
+        closure = set(states)
+        stack = list(states)
+
+        while stack:
+            current_state = stack.pop()
+            # Epsilon transitions are typically denoted by an empty string ''
+            epsilon_moves = nfa_obj.transitions.get(current_state, {}).get('', set())
+
+            for next_state in epsilon_moves:
+                if next_state not in closure:
+                    closure.add(next_state)
+                    stack.append(next_state)
+        return closure
+
+    @staticmethod
     def nfa_to_dfa(nfa_obj):
-        return DFA.from_nfa(nfa_obj)
+        """
+        Converts an NFA to a DFA using the Subset Construction Algorithm.
+        """
+        dfa_states = set()
+        dfa_transitions = {}
+        dfa_final_states = set()
+
+        # The initial state of the DFA is the epsilon-closure of the NFA's initial state
+        initial_dfa_state = frozenset(AutomataHandler._get_epsilon_closure(nfa_obj, {nfa_obj.initial_state}))
+        dfa_initial_state = initial_dfa_state
+
+        unprocessed_states = [initial_dfa_state]
+        dfa_states.add(initial_dfa_state)
+
+        while unprocessed_states:
+            current_dfa_state_frozenset = unprocessed_states.pop(0)
+            current_dfa_state_set = set(current_dfa_state_frozenset)
+
+            # This state is final if any of its NFA states are final
+            if not current_dfa_state_set.isdisjoint(nfa_obj.final_states):
+                dfa_final_states.add(current_dfa_state_frozenset)
+
+            dfa_transitions[current_dfa_state_frozenset] = {}
+
+            for symbol in nfa_obj.input_symbols:
+                # Epsilon transitions are not part of the DFA's alphabet
+                if symbol == '':
+                    continue
+
+                next_nfa_states = set()
+                # 1. Find all possible next states from the current set of NFA states
+                for nfa_state in current_dfa_state_set:
+                    next_nfa_states.update(nfa_obj.transitions.get(nfa_state, {}).get(symbol, set()))
+
+                # 2. Compute the epsilon-closure of this new set of states
+                next_dfa_state_set = AutomataHandler._get_epsilon_closure(nfa_obj, next_nfa_states)
+
+                next_dfa_state_frozenset = frozenset(next_dfa_state_set)
+
+                # Add the transition to the DFA
+                dfa_transitions[current_dfa_state_frozenset][symbol] = next_dfa_state_frozenset
+
+                # If this is a new DFA state, add it to our list to be processed
+                if next_dfa_state_frozenset not in dfa_states:
+                    dfa_states.add(next_dfa_state_frozenset)
+                    unprocessed_states.append(next_dfa_state_frozenset)
+
+        # The library expects state names to be strings for the DFA constructor,
+        # but the logic requires sets for processing. We'll convert the frozensets
+        # to a consistent, readable string representation for the final object.
+        state_map = {fs: str(sorted(list(fs))) if fs else "{}" for fs in dfa_states}
+
+        final_dfa_obj_states = set(state_map.values())
+        final_dfa_obj_initial_state = state_map[dfa_initial_state]
+        final_dfa_obj_final_states = {state_map[fs] for fs in dfa_final_states}
+        final_dfa_obj_transitions = {}
+
+        for state, transitions in dfa_transitions.items():
+            final_dfa_obj_transitions[state_map[state]] = {
+                symbol: state_map[target] for symbol, target in transitions.items()
+            }
+
+        return DFA(
+            states=final_dfa_obj_states,
+            input_symbols=nfa_obj.input_symbols - {''}, # Remove epsilon from DFA alphabet
+            transitions=final_dfa_obj_transitions,
+            initial_state=final_dfa_obj_initial_state,
+            final_states=final_dfa_obj_final_states
+        )
 
     @staticmethod
     def minimize_dfa(dfa_obj):
