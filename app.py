@@ -3,6 +3,7 @@ import os
 import pandas as pd
 from logic import LanguageProcessor
 from automata_logic import AutomataHandler
+from automata.fa.dfa import DFA
 
 # Page Config
 st.set_page_config(
@@ -287,6 +288,14 @@ with tab3:
         try:
             handler = AutomataHandler()
 
+            # Clear previous results
+            if "automata_result" in st.session_state:
+                del st.session_state["automata_result"]
+            if "automata_regex" in st.session_state:
+                del st.session_state["automata_regex"]
+            if "automata_steps" in st.session_state:
+                del st.session_state["automata_steps"]
+
             if source_type == "NFA":
                 # Parse Table to Transitions Dict
                 transitions = {}
@@ -309,7 +318,7 @@ with tab3:
                     # NFA -> DFA -> Regex
                     temp_dfa = handler.nfa_to_dfa(nfa)
                     result_str = handler.dfa_to_regex(temp_dfa)
-                    st.success(f"Generated Regex: `{result_str}`")
+                    st.session_state["automata_regex"] = result_str
 
             elif source_type == "DFA":
                 # Parse Table
@@ -330,7 +339,7 @@ with tab3:
                     st.session_state.converted_dfa = minimized_dfa
                 elif target_type == "Regex":
                     result_str = handler.dfa_to_regex(dfa)
-                    st.success(f"Generated Regex: `{result_str}`")
+                    st.session_state["automata_regex"] = result_str
 
             elif source_type == "Regex":
                 if target_type == "NFA":
