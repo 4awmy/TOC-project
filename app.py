@@ -280,8 +280,15 @@ with tab3:
     # 3. Action
     if st.button(f"Convert {source_type} -> {target_type}", type="primary"):
         try:
-            result_obj = None
             handler = AutomataHandler()
+
+            # Clear previous results
+            if "automata_result" in st.session_state:
+                del st.session_state["automata_result"]
+            if "automata_regex" in st.session_state:
+                del st.session_state["automata_regex"]
+            if "automata_steps" in st.session_state:
+                del st.session_state["automata_steps"]
 
             if source_type == "NFA":
                 # Parse Table to Transitions Dict
@@ -300,15 +307,13 @@ with tab3:
 
                 if target_type == "DFA":
                     result_obj = handler.nfa_to_dfa(nfa)
-                    # Display Table
-                    st.subheader("Transition Table (DFA)")
-                    st.table(handler.get_dfa_table(result_obj))
+                    st.session_state["automata_result"] = result_obj
 
                 elif target_type == "Regex":
                     # NFA -> DFA -> Regex
                     temp_dfa = handler.nfa_to_dfa(nfa)
                     result_str = handler.dfa_to_regex(temp_dfa)
-                    st.success(f"Generated Regex: `{result_str}`")
+                    st.session_state["automata_regex"] = result_str
 
             elif source_type == "DFA":
                 # Parse Table
@@ -320,42 +325,59 @@ with tab3:
                         if target.strip():
                              transitions[state][symbol] = target.strip()
                         else:
-                            # DFA must be complete usually, or we assume trap state?
-                            # Automata-lib DFA requires complete transitions usually
                             pass
 
                 dfa = handler.create_dfa(states, alphabet, transitions, start_state, final_states_sel)
 
                 if target_type == "Minimized DFA":
                     result_obj, steps = handler.minimize_dfa_with_steps(dfa)
-
-                    st.subheader("Minimization Steps")
-                    for step in steps:
-                        st.text(step)
-
-                    st.subheader("Minimized Transition Table")
-                    st.table(handler.get_dfa_table(result_obj))
+                    st.session_state["automata_result"] = result_obj
+                    st.session_state["automata_steps"] = steps
 
                 elif target_type == "Regex":
                     result_str = handler.dfa_to_regex(dfa)
-                    st.success(f"Generated Regex: `{result_str}`")
+                    st.session_state["automata_regex"] = result_str
 
             elif source_type == "Regex":
                 if target_type == "NFA":
                     result_obj = handler.regex_to_nfa(regex_input)
-
-            # Display Result Object (if it's an automaton)
-            if result_obj is not None:
-                st.success("Conversion Successful!")
-
-                # Visualization
-                try:
-                    dot = handler.get_graphviz_source(result_obj)
-                    st.graphviz_chart(dot.source)
-                except Exception as e:
-                    st.warning(f"Visualization failed: {e}")
-                    # Fallback text representation
-                    st.text(str(result_obj.transitions))
+                    st.session_state["automata_result"] = result_obj
 
         except Exception as e:
             st.error(f"Error: {e}")
+
+    # Display Results (Persistent)
+    if "automata_regex" in st.session_state:
+        st.success(f"Generated Regex: `{st.session_state['automata_regex']}`")
+
+    if st.session_state.get("automata_steps"):
+        st.subheader("Minimization Steps")
+        for step in st.session_state["automata_steps"]:
+            st.text(step)
+
+    # Check for result object safely (explicit None check to avoid InfiniteLanguageException)
+    if st.session_state.get("automata_result") is not None:
+        result_obj = st.session_state["automata_result"]
+
+        st.success("Operation Successful!")
+
+        # Display Table if it's a DFA/NFA
+        # Note: We can infer type or just try to display table if it has 'states'
+        handler = AutomataHandler()
+        try:
+            # If it has transitions, we can show a table
+            if hasattr(result_obj, 'transitions'):
+                st.subheader("Transition Table")
+                st.table(handler.get_dfa_table(result_obj))
+        except:
+            pass # Might be NFA or other format where get_dfa_table isn't perfect, or just skip
+
+        # Visualization
+        try:
+            dot = handler.get_graphviz_source(result_obj)
+            st.graphviz_chart(dot.source)
+        except Exception as e:
+            st.warning(f"Visualization failed: {e}")
+            # Fallback
+            if hasattr(result_obj, 'transitions'):
+                st.text(str(result_obj.transitions))
