@@ -3,6 +3,7 @@ import os
 import pandas as pd
 from logic import LanguageProcessor
 from automata_logic import AutomataHandler
+from automata.fa.dfa import DFA
 
 # Page Config
 st.set_page_config(
@@ -381,3 +382,19 @@ with tab3:
             # Fallback
             if hasattr(result_obj, 'transitions'):
                 st.text(str(result_obj.transitions))
+
+        # Add Chainable Minimization Option (Merged from main branch ideas, but using safe variables)
+        if isinstance(result_obj, DFA):
+            st.divider()
+            st.markdown("### Minimize this Result")
+            if st.button("Minimize this DFA", type="primary"):
+                try:
+                    with st.spinner("Minimizing..."):
+                        minimized_dfa, steps = handler.minimize_dfa_with_steps(result_obj)
+
+                        # Store result to persist
+                        st.session_state["automata_result"] = minimized_dfa
+                        st.session_state["automata_steps"] = steps
+                        st.rerun() # Rerun to update the display with minimized version
+                except Exception as e:
+                    st.error(f"Minimization failed: {e}")
