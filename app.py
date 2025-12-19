@@ -22,15 +22,15 @@ DEFAULT_API_KEY = ""
 # Sidebar for API Key
 with st.sidebar:
     st.header("Settings")
-
+    
     # Check if key is in env, otherwise use default
     current_key = os.environ.get("GOOGLE_API_KEY", DEFAULT_API_KEY)
-
+    
     api_key = st.text_input("Google API Key", value=current_key, type="password")
-
+    
     if api_key:
         os.environ["GOOGLE_API_KEY"] = api_key
-
+    
     st.markdown("---")
     st.markdown("### About")
     st.markdown("This tool uses AI to analyze formal languages and test strings against them.")
@@ -49,9 +49,9 @@ tab1, tab2, tab3 = st.tabs(["Define & Test Language", "Batch Testing", "Automata
 
 with tab1:
     st.header("Define a Language")
-
+    
     col1, col2 = st.columns([2, 1])
-
+    
     with col1:
         # Input for Language Description
         description = st.text_area(
@@ -59,7 +59,7 @@ with tab1:
             placeholder="e.g., The set of all strings over {0, 1} that start with 0 and end with 1",
             height=100
         )
-
+        
         example_lang = st.selectbox(
             "Or select an example:",
             [
@@ -71,7 +71,7 @@ with tab1:
                 "The set of strings matching the email format"
             ]
         )
-
+        
         if example_lang:
             description = example_lang
 
@@ -86,9 +86,9 @@ with tab1:
             with st.spinner("Analyzing..."):
                 # Force re-init to pick up key if it changed
                 processor.ai.configure_api(api_key)
-
+                
                 result = processor.set_language(description)
-
+            
             if "error" in result:
                 st.error(f"Error: {result['error']}")
             else:
@@ -100,9 +100,9 @@ with tab1:
     if "current_result" in st.session_state:
         result = st.session_state.current_result
         desc = st.session_state.current_description
-
+        
         st.info(f"**Current Language:** {desc}")
-
+        
         c1, c2 = st.columns(2)
         with c1:
             if result.get("is_regular"):
@@ -110,13 +110,13 @@ with tab1:
                 st.code(result.get("regex"), language="text")
             else:
                 st.warning(f"**Type:** Non-Regular Language")
-
+        
         with c2:
             st.write(f"**Explanation:** {result.get('explanation')}")
 
         st.markdown("---")
         st.subheader("Test Strings")
-
+        
         test_str = st.text_input("Enter a string to test")
         if st.button("Check String"):
             if not test_str:
@@ -124,13 +124,13 @@ with tab1:
             else:
                 with st.spinner(f"Checking '{test_str}'..."):
                     res = processor.process_string(test_str)
-
+                
                 if "error" in res:
                     st.error(res["error"])
                 else:
                     accepted = res.get("accepted")
                     reason = res.get("reason")
-
+                    
                     if accepted:
                         st.success(f"✅ ACCEPTED: {test_str}")
                     else:
@@ -139,27 +139,27 @@ with tab1:
 
 with tab2:
     st.header("Batch Testing")
-
+    
     if "current_description" not in st.session_state:
         st.warning("Please define a language in the 'Define & Test Language' tab first.")
     else:
         st.write(f"Testing against: **{st.session_state.current_description}**")
-
+        
         input_method = st.radio("Input Method", ["Manual Entry (CSV format)", "Upload CSV", "Hardcoded Samples"])
-
+        
         strings_to_test = []
-
+        
         if input_method == "Manual Entry (CSV format)":
             raw_text = st.text_area("Enter strings (one per line or comma separated)", "001\n111\n010")
             if raw_text:
                 strings_to_test = [s.strip() for s in raw_text.replace(',', '\n').split('\n') if s.strip()]
-
+                
         elif input_method == "Upload CSV":
             uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
             if uploaded_file is not None:
                 df = pd.read_csv(uploaded_file, header=None)
                 strings_to_test = df[0].astype(str).tolist()
-
+                
         elif input_method == "Hardcoded Samples":
             strings_to_test = ["001", "111", "010", "101", "00001", "aab", "aba", "abc"]
             st.write(f"Samples: {', '.join(strings_to_test)}")
@@ -170,7 +170,7 @@ with tab2:
             else:
                 results = []
                 progress_bar = st.progress(0)
-
+                
                 for i, s in enumerate(strings_to_test):
                     res = processor.process_string(s)
                     results.append({
@@ -179,17 +179,13 @@ with tab2:
                         "Reason": res.get("reason", "")
                     })
                     progress_bar.progress((i + 1) / len(strings_to_test))
-
+                
                 st.table(pd.DataFrame(results))
 
 
 with tab3:
     st.header("Automata Converter")
     st.markdown("Convert between NFA, DFA, and Regex using deterministic algorithms.")
-
-    # Initialize session state for the converted DFA
-    if "converted_dfa" not in st.session_state:
-        st.session_state.converted_dfa = None
 
     # 1. Converter Selection
     c1, c2 = st.columns(2)
@@ -203,7 +199,7 @@ with tab3:
             target_options = ["Regex", "Minimized DFA"]
         elif source_type == "Regex":
             target_options = ["NFA"]
-
+        
         target_type = st.selectbox("To", target_options)
 
     st.divider()
@@ -211,7 +207,7 @@ with tab3:
     # 2. Input Section
     if source_type in ["NFA", "DFA"]:
         st.subheader(f"Define {source_type}")
-
+        
         # State & Alphabet Config
         col_conf1, col_conf2 = st.columns(2)
         with col_conf1:
@@ -223,10 +219,10 @@ with tab3:
 
             states_str = st.text_input("States (comma separated)", key="states_input")
             alphabet_str = st.text_input("Alphabet (comma separated)", key="alphabet_input")
-
+        
         states = [s.strip() for s in states_str.split(",") if s.strip()]
         alphabet = [s.strip() for s in alphabet_str.split(",") if s.strip()]
-
+        
         with col_conf2:
             start_state = st.selectbox("Start State", states)
             final_states_sel = st.multiselect("Final States", states)
@@ -234,7 +230,7 @@ with tab3:
         # Transition Table Editor
         st.markdown("### Transition Table")
         st.caption("For NFA, enter multiple states separated by commas (e.g. 'q0, q1'). Use '{}' for empty.")
-
+        
         # Initialize dataframe for transitions
         # Rows = States, Cols = Alphabet
         if "trans_df" not in st.session_state:
@@ -253,7 +249,7 @@ with tab3:
                 # Example: Infinite NFA (0-9)
                 example_states = [str(i) for i in range(10)]
                 example_alphabet = ["0", "1"]
-
+                
                 # Helper to format set of states for the table (comma separated)
                 def fmt(s): return ", ".join(sorted(list(s))) if s else ""
 
@@ -269,7 +265,7 @@ with tab3:
                     "8": [fmt({'4', '7'}), fmt({'3'})],
                     "9": [fmt({'1', '6'}), fmt({'1'})]
                 }
-
+                
                 st.session_state.states_input = ", ".join(example_states)
                 st.session_state.alphabet_input = ", ".join(example_alphabet)
                 st.session_state.trans_df = pd.DataFrame.from_dict(data, orient='index', columns=example_alphabet)
@@ -281,13 +277,12 @@ with tab3:
         regex_input = st.text_input("Regular Expression", "0*10*")
 
     st.divider()
-
+    
     # 3. Action
     if st.button(f"Convert {source_type} -> {target_type}", type="primary"):
-        st.session_state.converted_dfa = None # Reset on any new conversion attempt
         try:
             handler = AutomataHandler()
-
+            
             # Clear previous results
             if "automata_result" in st.session_state:
                 del st.session_state["automata_result"]
@@ -308,12 +303,13 @@ with tab3:
                             transitions[state][symbol] = targets
                         else:
                              transitions[state][symbol] = set() # Empty set
-
+                
                 nfa = handler.create_nfa(states, alphabet, transitions, start_state, final_states_sel)
-
+                
                 if target_type == "DFA":
                     result_obj = handler.nfa_to_dfa(nfa)
-                    st.session_state.converted_dfa = result_obj # Store for minimization option
+                    st.session_state["automata_result"] = result_obj
+                
                 elif target_type == "Regex":
                     # NFA -> DFA -> Regex
                     temp_dfa = handler.nfa_to_dfa(nfa)
@@ -330,13 +326,15 @@ with tab3:
                         if target.strip():
                              transitions[state][symbol] = target.strip()
                         else:
-                            pass
-
+                            pass 
+                
                 dfa = handler.create_dfa(states, alphabet, transitions, start_state, final_states_sel)
-
+                
                 if target_type == "Minimized DFA":
-                    minimized_dfa, steps = handler.minimize_dfa_with_steps(dfa)
-                    st.session_state.converted_dfa = minimized_dfa
+                    result_obj, steps = handler.minimize_dfa_with_steps(dfa)
+                    st.session_state["automata_result"] = result_obj
+                    st.session_state["automata_steps"] = steps
+                    
                 elif target_type == "Regex":
                     result_str = handler.dfa_to_regex(dfa)
                     st.session_state["automata_regex"] = result_str
@@ -344,19 +342,36 @@ with tab3:
             elif source_type == "Regex":
                 if target_type == "NFA":
                     result_obj = handler.regex_to_nfa(regex_input)
-                    st.session_state.converted_dfa = result_obj
+                    st.session_state["automata_result"] = result_obj
 
         except Exception as e:
             st.error(f"Error: {e}")
 
-    # Display Result Object (if it's an automaton)
-    if st.session_state.get("converted_dfa"):
-        st.success("Conversion Successful!")
-        result_obj = st.session_state.converted_dfa
+    # Display Results (Persistent)
+    if "automata_regex" in st.session_state:
+        st.success(f"Generated Regex: `{st.session_state['automata_regex']}`")
 
-        if isinstance(result_obj, DFA):
-            st.subheader("Transition Table (DFA)")
-            st.table(handler.get_dfa_table(result_obj))
+    if st.session_state.get("automata_steps"):
+        st.subheader("Minimization Steps")
+        for step in st.session_state["automata_steps"]:
+            st.text(step)
+
+    # Check for result object safely (explicit None check to avoid InfiniteLanguageException)
+    if st.session_state.get("automata_result") is not None:
+        result_obj = st.session_state["automata_result"]
+        
+        st.success("Operation Successful!")
+        
+        # Display Table if it's a DFA/NFA
+        # Note: We can infer type or just try to display table if it has 'states'
+        handler = AutomataHandler()
+        try:
+            # If it has transitions, we can show a table
+            if hasattr(result_obj, 'transitions'):
+                st.subheader("Transition Table")
+                st.table(handler.get_dfa_table(result_obj))
+        except:
+            pass # Might be NFA or other format where get_dfa_table isn't perfect, or just skip
 
         # Visualization
         try:
@@ -364,33 +379,22 @@ with tab3:
             st.graphviz_chart(dot.source)
         except Exception as e:
             st.warning(f"Visualization failed: {e}")
-            st.text(str(result_obj.transitions))
-
-        # Option to minimize the newly created DFA
+            # Fallback
+            if hasattr(result_obj, 'transitions'):
+                st.text(str(result_obj.transitions))
+        
+        # Add Chainable Minimization Option (Merged from main branch ideas, but using safe variables)
         if isinstance(result_obj, DFA):
             st.divider()
-            st.markdown("### Minimize the Result")
+            st.markdown("### Minimize this Result")
             if st.button("Minimize this DFA", type="primary"):
-                handler = AutomataHandler()
-                dfa_to_minimize = st.session_state.converted_dfa
-
-                with st.spinner("Minimizing..."):
-                    minimized_dfa, steps = handler.minimize_dfa_with_steps(dfa_to_minimize)
-
-                    st.subheader("Minimization Steps (Moore's Algorithm)")
-                    for step in steps:
-                        st.text(step)
-
-                    st.subheader("Minimized Transition Table")
-                    st.table(handler.get_dfa_table(minimized_dfa))
-
-                    st.subheader("Minimized DFA Diagram")
-                    try:
-                        dot = handler.get_graphviz_source(minimized_dfa)
-                        st.graphviz_chart(dot.source)
-                    except Exception as e:
-                        st.warning(f"Visualization failed: {e}")
-                        st.text(str(minimized_dfa.transitions))
-
-                # Clear the state to hide this section after it's been used
-                st.session_state.converted_dfa = None
+                try:
+                    with st.spinner("Minimizing..."):
+                        minimized_dfa, steps = handler.minimize_dfa_with_steps(result_obj)
+                        
+                        # Store result to persist
+                        st.session_state["automata_result"] = minimized_dfa
+                        st.session_state["automata_steps"] = steps
+                        st.rerun() # Rerun to update the display with minimized version
+                except Exception as e:
+                    st.error(f"Minimization failed: {e}")
