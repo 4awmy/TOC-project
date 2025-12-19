@@ -309,7 +309,6 @@ with tab3:
                 if target_type == "DFA":
                     result_obj = handler.nfa_to_dfa(nfa)
                     st.session_state["automata_result"] = result_obj
-
                 
                 elif target_type == "Regex":
                     # NFA -> DFA -> Regex
@@ -335,7 +334,6 @@ with tab3:
                     result_obj, steps = handler.minimize_dfa_with_steps(dfa)
                     st.session_state["automata_result"] = result_obj
                     st.session_state["automata_steps"] = steps
-
                     
                 elif target_type == "Regex":
                     result_str = handler.dfa_to_regex(dfa)
@@ -361,9 +359,6 @@ with tab3:
     # Check for result object safely (explicit None check to avoid InfiniteLanguageException)
     if st.session_state.get("automata_result") is not None:
         result_obj = st.session_state["automata_result"]
-
-        st.success("Operation Successful!")
-
         
         st.success("Operation Successful!")
         
@@ -387,7 +382,6 @@ with tab3:
             # Fallback
             if hasattr(result_obj, 'transitions'):
                 st.text(str(result_obj.transitions))
-
         
         # Add Chainable Minimization Option (Merged from main branch ideas, but using safe variables)
         if isinstance(result_obj, DFA):
@@ -397,7 +391,6 @@ with tab3:
                 try:
                     with st.spinner("Minimizing..."):
                         minimized_dfa, steps = handler.minimize_dfa_with_steps(result_obj)
-
                         
                         # Store result to persist
                         st.session_state["automata_result"] = minimized_dfa
