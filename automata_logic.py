@@ -77,12 +77,25 @@ class AutomataHandler:
                 for state in group:
                     signature = []
                     for symbol in sorted(list(dfa_obj.input_symbols)):
-                        target = dfa_obj.transitions[state][symbol]
-                        # Find which partition index this target belongs to
-                        for idx, p in enumerate(partitions):
-                            if target in p:
-                                signature.append(idx)
-                                break
+                        # Handle partial DFAs (missing transitions go to sink)
+                        target = dfa_obj.transitions[state].get(symbol)
+
+                        if target is None:
+                            # Use -1 to represent implicit sink state
+                            signature.append(-1)
+                        else:
+                            # Find which partition index this target belongs to
+                            found = False
+                            for idx, p in enumerate(partitions):
+                                if target in p:
+                                    signature.append(idx)
+                                    found = True
+                                    break
+                            # If target is not in any partition (should not happen for valid states,
+                            # but possible if target is a dead state not in states list?)
+                            # Implicitly, all states in DFA should be in one of the partitions.
+                            if not found:
+                                signature.append(-2) # Error or external state
                     signature = tuple(signature)
 
                     if signature not in sub_groups:
@@ -142,11 +155,18 @@ class AutomataHandler:
         dot = graphviz.Digraph()
         dot.attr(rankdir='LR')
 
+        def safe_label(s):
+            """Sanitize state label to look cleaner (e.g. remove frozenset(...))."""
+            lbl = str(s)
+            if lbl.startswith("frozenset({") and lbl.endswith("})"):
+                return "{" + lbl[11:-2] + "}"
+            return lbl
+
         # Add states
         for state in automaton.states:
             shape = 'doublecircle' if state in automaton.final_states else 'circle'
             # Convert state to string safely (dfa states can be sets/tuples)
-            state_label = str(state)
+            state_label = safe_label(state)
 
             # Start state indication
             if state == automaton.initial_state:
@@ -159,12 +179,12 @@ class AutomataHandler:
         # NFA transitions: {state: {symbol: {targets}}}
         # DFA transitions: {state: {symbol: target}}
         for src, transitions in automaton.transitions.items():
-            src_label = str(src)
+            src_label = safe_label(src)
             for symbol, target in transitions.items():
                 if isinstance(target, set): # NFA
                     for t in target:
-                        dot.edge(src_label, str(t), label=symbol)
+                        dot.edge(src_label, safe_label(t), label=symbol)
                 else: # DFA
-                    dot.edge(src_label, str(target), label=symbol)
+                    dot.edge(src_label, safe_label(target), label=symbol)
 
         return dot
