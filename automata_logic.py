@@ -34,96 +34,8 @@ class AutomataHandler:
         )
 
     @staticmethod
-    def _get_epsilon_closure(nfa_obj, states):
-        """
-        Computes the epsilon-closure for a set of NFA states.
-        This includes the initial states and all states reachable via epsilon transitions.
-        """
-        closure = set(states)
-        stack = list(states)
-
-        while stack:
-            current_state = stack.pop()
-            # Epsilon transitions are typically denoted by an empty string ''
-            epsilon_moves = nfa_obj.transitions.get(current_state, {}).get('', set())
-
-            for next_state in epsilon_moves:
-                if next_state not in closure:
-                    closure.add(next_state)
-                    stack.append(next_state)
-        return closure
-
-    @staticmethod
     def nfa_to_dfa(nfa_obj):
-        """
-        Converts an NFA to a DFA using the Subset Construction Algorithm.
-        """
-        dfa_states = set()
-        dfa_transitions = {}
-        dfa_final_states = set()
-
-        # The initial state of the DFA is the epsilon-closure of the NFA's initial state
-        initial_dfa_state = frozenset(AutomataHandler._get_epsilon_closure(nfa_obj, {nfa_obj.initial_state}))
-        dfa_initial_state = initial_dfa_state
-
-        unprocessed_states = [initial_dfa_state]
-        dfa_states.add(initial_dfa_state)
-
-        while unprocessed_states:
-            current_dfa_state_frozenset = unprocessed_states.pop(0)
-            current_dfa_state_set = set(current_dfa_state_frozenset)
-
-            # This state is final if any of its NFA states are final
-            if not current_dfa_state_set.isdisjoint(nfa_obj.final_states):
-                dfa_final_states.add(current_dfa_state_frozenset)
-
-            dfa_transitions[current_dfa_state_frozenset] = {}
-
-            for symbol in nfa_obj.input_symbols:
-                # Epsilon transitions are not part of the DFA's alphabet
-                if symbol == '':
-                    continue
-
-                next_nfa_states = set()
-                # 1. Find all possible next states from the current set of NFA states
-                for nfa_state in current_dfa_state_set:
-                    next_nfa_states.update(nfa_obj.transitions.get(nfa_state, {}).get(symbol, set()))
-
-                # 2. Compute the epsilon-closure of this new set of states
-                next_dfa_state_set = AutomataHandler._get_epsilon_closure(nfa_obj, next_nfa_states)
-
-                next_dfa_state_frozenset = frozenset(next_dfa_state_set)
-
-                # Add the transition to the DFA
-                dfa_transitions[current_dfa_state_frozenset][symbol] = next_dfa_state_frozenset
-
-                # If this is a new DFA state, add it to our list to be processed
-                if next_dfa_state_frozenset not in dfa_states:
-                    dfa_states.add(next_dfa_state_frozenset)
-                    unprocessed_states.append(next_dfa_state_frozenset)
-
-        # The library expects state names to be strings for the DFA constructor,
-        # but the logic requires sets for processing. We'll convert the frozensets
-        # to a consistent, readable string representation for the final object.
-        state_map = {fs: str(sorted(list(fs))) if fs else "{}" for fs in dfa_states}
-
-        final_dfa_obj_states = set(state_map.values())
-        final_dfa_obj_initial_state = state_map[dfa_initial_state]
-        final_dfa_obj_final_states = {state_map[fs] for fs in dfa_final_states}
-        final_dfa_obj_transitions = {}
-
-        for state, transitions in dfa_transitions.items():
-            final_dfa_obj_transitions[state_map[state]] = {
-                symbol: state_map[target] for symbol, target in transitions.items()
-            }
-
-        return DFA(
-            states=final_dfa_obj_states,
-            input_symbols=nfa_obj.input_symbols - {''}, # Remove epsilon from DFA alphabet
-            transitions=final_dfa_obj_transitions,
-            initial_state=final_dfa_obj_initial_state,
-            final_states=final_dfa_obj_final_states
-        )
+        return DFA.from_nfa(nfa_obj)
 
     @staticmethod
     def minimize_dfa(dfa_obj):
@@ -165,12 +77,25 @@ class AutomataHandler:
                 for state in group:
                     signature = []
                     for symbol in sorted(list(dfa_obj.input_symbols)):
-                        target = dfa_obj.transitions[state][symbol]
-                        # Find which partition index this target belongs to
-                        for idx, p in enumerate(partitions):
-                            if target in p:
-                                signature.append(idx)
-                                break
+                        # Handle partial DFAs (missing transitions go to sink)
+                        target = dfa_obj.transitions[state].get(symbol)
+
+                        if target is None:
+                            # Use -1 to represent implicit sink state
+                            signature.append(-1)
+                        else:
+                            # Find which partition index this target belongs to
+                            found = False
+                            for idx, p in enumerate(partitions):
+                                if target in p:
+                                    signature.append(idx)
+                                    found = True
+                                    break
+                            # If target is not in any partition (should not happen for valid states,
+                            # but possible if target is a dead state not in states list?)
+                            # Implicitly, all states in DFA should be in one of the partitions.
+                            if not found:
+                                signature.append(-2) # Error or external state
                     signature = tuple(signature)
 
                     if signature not in sub_groups:
@@ -230,11 +155,18 @@ class AutomataHandler:
         dot = graphviz.Digraph()
         dot.attr(rankdir='LR')
 
+        def safe_label(s):
+            """Sanitize state label to look cleaner (e.g. remove frozenset(...))."""
+            lbl = str(s)
+            if lbl.startswith("frozenset({") and lbl.endswith("})"):
+                return "{" + lbl[11:-2] + "}"
+            return lbl
+
         # Add states
         for state in automaton.states:
             shape = 'doublecircle' if state in automaton.final_states else 'circle'
             # Convert state to string safely (dfa states can be sets/tuples)
-            state_label = str(state)
+            state_label = safe_label(state)
 
             # Start state indication
             if state == automaton.initial_state:
@@ -247,12 +179,12 @@ class AutomataHandler:
         # NFA transitions: {state: {symbol: {targets}}}
         # DFA transitions: {state: {symbol: target}}
         for src, transitions in automaton.transitions.items():
-            src_label = str(src)
+            src_label = safe_label(src)
             for symbol, target in transitions.items():
                 if isinstance(target, set): # NFA
                     for t in target:
-                        dot.edge(src_label, str(t), label=symbol)
+                        dot.edge(src_label, safe_label(t), label=symbol)
                 else: # DFA
-                    dot.edge(src_label, str(target), label=symbol)
+                    dot.edge(src_label, safe_label(target), label=symbol)
 
         return dot
