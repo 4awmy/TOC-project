@@ -367,7 +367,7 @@ with tab2:
                 if target_type == "DFA":
                     result_obj = handler.nfa_to_dfa(nfa)
                     st.session_state["automata_result"] = result_obj
-
+                
                 elif target_type == "Regex":
                     # NFA -> DFA -> Regex
                     temp_dfa = handler.nfa_to_dfa(nfa)
@@ -392,7 +392,7 @@ with tab2:
                     result_obj, steps = handler.minimize_dfa_with_steps(dfa)
                     st.session_state["automata_result"] = result_obj
                     st.session_state["automata_steps"] = steps
-
+                    
                 elif target_type == "Regex":
                     result_str = handler.dfa_to_regex(dfa)
                     st.session_state["automata_regex"] = result_str
@@ -417,9 +417,9 @@ with tab2:
     # Check for result object safely (explicit None check to avoid InfiniteLanguageException)
     if st.session_state.get("automata_result") is not None:
         result_obj = st.session_state["automata_result"]
-
+        
         st.success("Operation Successful!")
-
+        
         # Display Table if it's a DFA/NFA
         # Note: We can infer type or just try to display table if it has 'states'
         handler = AutomataHandler()
@@ -440,7 +440,7 @@ with tab2:
             # Fallback
             if hasattr(result_obj, 'transitions'):
                 st.text(str(result_obj.transitions))
-
+        
         # Add Chainable Minimization Option (Merged from main branch ideas, but using safe variables)
         if isinstance(result_obj, DFA):
             st.divider()
@@ -449,7 +449,7 @@ with tab2:
                 try:
                     with st.spinner("Minimizing..."):
                         minimized_dfa, steps = handler.minimize_dfa_with_steps(result_obj)
-
+                        
                         # Store result to persist
                         st.session_state["automata_result"] = minimized_dfa
                         st.session_state["automata_steps"] = steps
