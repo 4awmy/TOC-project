@@ -15,27 +15,42 @@ st.set_page_config(
 # Title
 st.title("📐 Automata & Formal Language Studio")
 
-# WARNING: It is generally not safe to hardcode API keys in code.
-# Consider using environment variables for production.
+# -----------------------------------------------------------------------------
+# API Key Handling & Sidebar
+# -----------------------------------------------------------------------------
 DEFAULT_API_KEY = ""
 
-# Sidebar for API Key
 with st.sidebar:
     st.header("Settings")
-    
-    # Check if key is in env, otherwise use default
-    current_key = os.environ.get("GOOGLE_API_KEY", DEFAULT_API_KEY)
-    
-    api_key = st.text_input("Google API Key", value=current_key, type="password")
-    
+
+    # Priority: 1. Streamlit Secrets, 2. OS Environment, 3. User Input
+    # Try to get key from secrets or env
+    system_key = None
+    if "GOOGLE_API_KEY" in st.secrets:
+        system_key = st.secrets["GOOGLE_API_KEY"]
+    elif "GOOGLE_API_KEY" in os.environ:
+        system_key = os.environ["GOOGLE_API_KEY"]
+
+    if system_key:
+        st.success("✅ System API Key Active")
+        # Optional override
+        api_key = st.text_input("Override API Key (Optional)", type="password")
+        if not api_key:
+            api_key = system_key
+    else:
+        st.warning("⚠️ No System API Key found")
+        api_key = st.text_input("Google API Key", type="password")
+
     if api_key:
         os.environ["GOOGLE_API_KEY"] = api_key
-    
+
     st.markdown("---")
     st.markdown("### About")
     st.markdown("This tool uses AI to analyze formal languages and test strings against them.")
 
-# Initialize Session State
+# -----------------------------------------------------------------------------
+# Session State Initialization
+# -----------------------------------------------------------------------------
 if "processor" not in st.session_state:
     st.session_state.processor = LanguageProcessor()
 
@@ -44,14 +59,19 @@ if "history" not in st.session_state:
 
 processor = st.session_state.processor
 
-# Main Content
-tab1, tab2, tab3 = st.tabs(["Define & Test Language", "Batch Testing", "Automata Operations"])
+# -----------------------------------------------------------------------------
+# Main Content Tabs
+# -----------------------------------------------------------------------------
+tab1, tab2 = st.tabs(["Define & Test Language", "Automata Studio"])
 
+# =============================================================================
+# TAB 1: Define & Test Language (Merged with Batch Testing)
+# =============================================================================
 with tab1:
     st.header("Define a Language")
-    
+
     col1, col2 = st.columns([2, 1])
-    
+
     with col1:
         # Input for Language Description
         description = st.text_area(
@@ -59,7 +79,7 @@ with tab1:
             placeholder="e.g., The set of all strings over {0, 1} that start with 0 and end with 1",
             height=100
         )
-        
+
         example_lang = st.selectbox(
             "Or select an example:",
             [
@@ -71,7 +91,7 @@ with tab1:
                 "The set of strings matching the email format"
             ]
         )
-        
+
         if example_lang:
             description = example_lang
 
@@ -86,9 +106,9 @@ with tab1:
             with st.spinner("Analyzing..."):
                 # Force re-init to pick up key if it changed
                 processor.ai.configure_api(api_key)
-                
+
                 result = processor.set_language(description)
-            
+
             if "error" in result:
                 st.error(f"Error: {result['error']}")
             else:
@@ -96,13 +116,13 @@ with tab1:
                 st.session_state.current_result = result
                 st.session_state.current_description = description
 
-    # Display Current Language Info
+    # Display Current Language Info & Testing
     if "current_result" in st.session_state:
         result = st.session_state.current_result
         desc = st.session_state.current_description
-        
+
         st.info(f"**Current Language:** {desc}")
-        
+
         c1, c2 = st.columns(2)
         with c1:
             if result.get("is_regular"):
@@ -110,81 +130,80 @@ with tab1:
                 st.code(result.get("regex"), language="text")
             else:
                 st.warning(f"**Type:** Non-Regular Language")
-        
+
         with c2:
             st.write(f"**Explanation:** {result.get('explanation')}")
 
-        st.markdown("---")
-        st.subheader("Test Strings")
-        
-        test_str = st.text_input("Enter a string to test")
-        if st.button("Check String"):
-            if not test_str:
-                st.warning("Enter a string.")
-            else:
-                with st.spinner(f"Checking '{test_str}'..."):
-                    res = processor.process_string(test_str)
-                
-                if "error" in res:
-                    st.error(res["error"])
+        st.divider()
+        st.subheader("String Testing")
+
+        test_mode = st.radio("Test Mode", ["Single String", "Batch Test"], horizontal=True)
+
+        if test_mode == "Single String":
+            test_str = st.text_input("Enter a string to test")
+            if st.button("Check String"):
+                if not test_str:
+                    st.warning("Enter a string.")
                 else:
-                    accepted = res.get("accepted")
-                    reason = res.get("reason")
-                    
-                    if accepted:
-                        st.success(f"✅ ACCEPTED: {test_str}")
+                    with st.spinner(f"Checking '{test_str}'..."):
+                        res = processor.process_string(test_str)
+
+                    if "error" in res:
+                        st.error(res["error"])
                     else:
-                        st.error(f"❌ REJECTED: {test_str}")
-                    st.write(f"**Reason:** {reason}")
+                        accepted = res.get("accepted")
+                        reason = res.get("reason")
 
+                        if accepted:
+                            st.success(f"✅ ACCEPTED: {test_str}")
+                        else:
+                            st.error(f"❌ REJECTED: {test_str}")
+                        st.write(f"**Reason:** {reason}")
+
+        else: # Batch Testing
+            st.markdown("#### Batch Testing Options")
+            input_method = st.selectbox("Input Method", ["Manual Entry (CSV format)", "Upload CSV", "Hardcoded Samples"])
+
+            strings_to_test = []
+
+            if input_method == "Manual Entry (CSV format)":
+                raw_text = st.text_area("Enter strings (one per line or comma separated)", "001\n111\n010")
+                if raw_text:
+                    strings_to_test = [s.strip() for s in raw_text.replace(',', '\n').split('\n') if s.strip()]
+
+            elif input_method == "Upload CSV":
+                uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+                if uploaded_file is not None:
+                    df = pd.read_csv(uploaded_file, header=None)
+                    strings_to_test = df[0].astype(str).tolist()
+
+            elif input_method == "Hardcoded Samples":
+                strings_to_test = ["001", "111", "010", "101", "00001", "aab", "aba", "abc"]
+                st.write(f"Samples: {', '.join(strings_to_test)}")
+
+            if st.button("Run Batch Test"):
+                if not strings_to_test:
+                    st.warning("No strings provided.")
+                else:
+                    results = []
+                    progress_bar = st.progress(0)
+
+                    for i, s in enumerate(strings_to_test):
+                        res = processor.process_string(s)
+                        results.append({
+                            "String": s,
+                            "Status": "ACCEPTED" if res.get("accepted") else "REJECTED",
+                            "Reason": res.get("reason", "")
+                        })
+                        progress_bar.progress((i + 1) / len(strings_to_test))
+
+                    st.table(pd.DataFrame(results))
+
+# =============================================================================
+# TAB 2: Automata Studio (NFA, DFA, Regex Ops)
+# =============================================================================
 with tab2:
-    st.header("Batch Testing")
-    
-    if "current_description" not in st.session_state:
-        st.warning("Please define a language in the 'Define & Test Language' tab first.")
-    else:
-        st.write(f"Testing against: **{st.session_state.current_description}**")
-        
-        input_method = st.radio("Input Method", ["Manual Entry (CSV format)", "Upload CSV", "Hardcoded Samples"])
-        
-        strings_to_test = []
-        
-        if input_method == "Manual Entry (CSV format)":
-            raw_text = st.text_area("Enter strings (one per line or comma separated)", "001\n111\n010")
-            if raw_text:
-                strings_to_test = [s.strip() for s in raw_text.replace(',', '\n').split('\n') if s.strip()]
-                
-        elif input_method == "Upload CSV":
-            uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
-            if uploaded_file is not None:
-                df = pd.read_csv(uploaded_file, header=None)
-                strings_to_test = df[0].astype(str).tolist()
-                
-        elif input_method == "Hardcoded Samples":
-            strings_to_test = ["001", "111", "010", "101", "00001", "aab", "aba", "abc"]
-            st.write(f"Samples: {', '.join(strings_to_test)}")
-
-        if st.button("Run Batch Test"):
-            if not strings_to_test:
-                st.warning("No strings provided.")
-            else:
-                results = []
-                progress_bar = st.progress(0)
-                
-                for i, s in enumerate(strings_to_test):
-                    res = processor.process_string(s)
-                    results.append({
-                        "String": s,
-                        "Status": "ACCEPTED" if res.get("accepted") else "REJECTED",
-                        "Reason": res.get("reason", "")
-                    })
-                    progress_bar.progress((i + 1) / len(strings_to_test))
-                
-                st.table(pd.DataFrame(results))
-
-
-with tab3:
-    st.header("Automata Converter")
+    st.header("Automata Studio")
     st.markdown("Convert between NFA, DFA, and Regex using deterministic algorithms.")
 
     # 1. Converter Selection
@@ -199,7 +218,7 @@ with tab3:
             target_options = ["Regex", "Minimized DFA"]
         elif source_type == "Regex":
             target_options = ["NFA"]
-        
+
         target_type = st.selectbox("To", target_options)
 
     st.divider()
@@ -207,7 +226,7 @@ with tab3:
     # 2. Input Section
     if source_type in ["NFA", "DFA"]:
         st.subheader(f"Define {source_type}")
-        
+
         # State & Alphabet Config
         col_conf1, col_conf2 = st.columns(2)
         with col_conf1:
@@ -219,10 +238,10 @@ with tab3:
 
             states_str = st.text_input("States (comma separated)", key="states_input")
             alphabet_str = st.text_input("Alphabet (comma separated)", key="alphabet_input")
-        
+
         states = [s.strip() for s in states_str.split(",") if s.strip()]
         alphabet = [s.strip() for s in alphabet_str.split(",") if s.strip()]
-        
+
         with col_conf2:
             start_state = st.selectbox("Start State", states)
             final_states_sel = st.multiselect("Final States", states)
@@ -230,7 +249,7 @@ with tab3:
         # Transition Table Editor
         st.markdown("### Transition Table")
         st.caption("For NFA, enter multiple states separated by commas (e.g. 'q0, q1'). Use '{}' for empty.")
-        
+
         # Initialize dataframe for transitions
         # Rows = States, Cols = Alphabet
         if "trans_df" not in st.session_state:
@@ -249,7 +268,7 @@ with tab3:
                 # Example: Infinite NFA (0-9)
                 example_states = [str(i) for i in range(10)]
                 example_alphabet = ["0", "1"]
-                
+
                 # Helper to format set of states for the table (comma separated)
                 def fmt(s): return ", ".join(sorted(list(s))) if s else ""
 
@@ -265,24 +284,63 @@ with tab3:
                     "8": [fmt({'4', '7'}), fmt({'3'})],
                     "9": [fmt({'1', '6'}), fmt({'1'})]
                 }
-                
+
                 st.session_state.states_input = ", ".join(example_states)
                 st.session_state.alphabet_input = ", ".join(example_alphabet)
                 st.session_state.trans_df = pd.DataFrame.from_dict(data, orient='index', columns=example_alphabet)
 
-        st.button("Load Example", on_click=load_example_callback)
+            elif source_type == "DFA":
+                # Example: Non-minimized DFA for (a|b)*abb
+                # States q0, q1, q2, q3, q4 where q2 and q4 might be equivalent or similar structure
+                # Let's use a simpler one with clear redundancy.
+                # A DFA accepting strings with odd number of 0s.
+                # Minimal: 2 states. We will give it 4 states.
+                # q0 (start, even) --0--> q1 (odd)
+                # q1 (odd, final) --0--> q0
+                # q2 (equivalent to q0) --0--> q3 (odd)
+                # q3 (equivalent to q1) --0--> q2
+                # 1s self loop everywhere.
+
+                ex_states = ["q0", "q1", "q2", "q3"]
+                ex_alphabet = ["0", "1"]
+
+                data = {
+                    "q0": ["q1", "q0"], # even
+                    "q1": ["q0", "q1"], # odd (final)
+                    "q2": ["q3", "q2"], # even copy
+                    "q3": ["q2", "q3"]  # odd copy (final)
+                }
+
+                st.session_state.states_input = ", ".join(ex_states)
+                st.session_state.alphabet_input = ", ".join(ex_alphabet)
+                st.session_state.trans_df = pd.DataFrame.from_dict(data, orient='index', columns=ex_alphabet)
+
+            elif source_type == "Regex":
+                 st.session_state.regex_input_field = "(a|b)*abb"
+
+        st.button(f"Load {source_type} Example", on_click=load_example_callback)
 
     elif source_type == "Regex":
         st.subheader("Define Regex")
-        regex_input = st.text_input("Regular Expression", "0*10*")
+        # Initialize session state for regex if not present
+        if "regex_input_field" not in st.session_state:
+             st.session_state.regex_input_field = "0*10*"
+
+        regex_input = st.text_input("Regular Expression", key="regex_input_field")
+
+        # Load Example Button for Regex
+        def load_regex_example():
+             st.session_state.regex_input_field = "(a|b)*abb"
+
+        st.button("Load Regex Example", on_click=load_regex_example)
 
     st.divider()
-    
+
     # 3. Action
     if st.button(f"Convert {source_type} -> {target_type}", type="primary"):
         try:
             handler = AutomataHandler()
-            
+
             # Clear previous results
             if "automata_result" in st.session_state:
                 del st.session_state["automata_result"]
@@ -303,9 +361,9 @@ with tab3:
                             transitions[state][symbol] = targets
                         else:
                              transitions[state][symbol] = set() # Empty set
-                
+
                 nfa = handler.create_nfa(states, alphabet, transitions, start_state, final_states_sel)
-                
+
                 if target_type == "DFA":
                     result_obj = handler.nfa_to_dfa(nfa)
                     st.session_state["automata_result"] = result_obj
@@ -326,10 +384,10 @@ with tab3:
                         if target.strip():
                              transitions[state][symbol] = target.strip()
                         else:
-                            pass 
-                
+                            pass
+
                 dfa = handler.create_dfa(states, alphabet, transitions, start_state, final_states_sel)
-                
+
                 if target_type == "Minimized DFA":
                     result_obj, steps = handler.minimize_dfa_with_steps(dfa)
                     st.session_state["automata_result"] = result_obj
