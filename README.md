@@ -28,33 +28,6 @@ A powerful AI-powered tool for exploring Theory of Computation concepts, includi
     streamlit run app.py
     ```
 
-## API Key Configuration
-
-The application requires a **Google Gemini API Key** for the "Language Definition" features. You can obtain one from [Google AI Studio](https://aistudio.google.com/app/apikey).
-
-You can configure the key in three ways (in order of priority):
-
-### 1. Streamlit Secrets (Recommended for Local/Server)
-This method allows the app to automatically detect the key as a "System Key", making it optional for end-users to provide their own.
-
-1.  Create a folder named `.streamlit` in the project root.
-2.  Inside it, create a file named `secrets.toml`.
-3.  Add your key:
-    ```toml
-    GOOGLE_API_KEY = "your_actual_api_key_here"
-    ```
-    *(See `secrets.toml.example` for a template)*
-
-### 2. Environment Variable
-Set the `GOOGLE_API_KEY` environment variable in your terminal or deployment settings.
-```bash
-export GOOGLE_API_KEY="your_api_key"
-streamlit run app.py
-```
-
-### 3. User Input (Sidebar)
-If no system key is configured, the application will prompt the user to enter their own key in the sidebar.
-
 ## File Structure & Descriptions
 
 Here is a detailed explanation of every file in the project:
@@ -71,5 +44,11 @@ Here is a detailed explanation of every file in the project:
 ### Configuration & Data
 *   **`requirements.txt`**: Lists all Python libraries required to run the project (e.g., `streamlit`, `google-generativeai`, `automata-lib`).
 *   **`packages.txt`**: Used by deployment platforms (like Streamlit Cloud) to install system-level dependencies. It lists `graphviz`.
-*   **`secrets.toml.example`**: A template file showing how to configure the API key using Streamlit secrets.
 *   **`test_inputs.csv`**: A sample CSV file containing a list of strings (e.g., `001`, `111`, `010`). This can be used to demonstrate the "Batch Testing" feature.
+*   **`check_capabilities.py`**: A utility script used during development to verify that the `automata-lib` library is correctly installed and supports the required operations (like NFA creation and DFA conversion).
+
+## Configuration
+
+The application requires a **Google Gemini API Key**.
+*   You can set it via the environment variable `GOOGLE_API_KEY`.
+*   Alternatively, you can enter it directly in the application sidebar.
