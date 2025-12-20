@@ -25,7 +25,7 @@ class AIHandler:
     def configure_api(self, api_key: str):
         genai.configure(api_key=api_key)
         # Using 'gemini-1.5-flash' for stability and structured output support
-        self.model = genai.GenerativeModel('gemini-1.5-flash-001')
+        self.model = genai.GenerativeModel('gemini-pro')
         self.ready = True
 
     def analyze_language(self, description: str) -> dict:
