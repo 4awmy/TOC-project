@@ -97,3 +97,27 @@ The application requires a **Google Gemini API Key** for the "Language Definitio
 
 ### 2. Sidebar Input
 If no system key is found, the app will prompt you to enter one in the sidebar.
+## File Structure & Descriptions
+
+Here is a detailed explanation of every file in the project:
+
+### Core Application
+*   **`app.py`**: The main entry point for the web application. Built with Streamlit, it manages the user interface, including tabs for language definition, batch testing, and automata operations. It handles user inputs and calls the appropriate logic handlers.
+*   **`main.py`**: The legacy command-line interface (CLI) for the tool. It provides a text-based menu for defining languages and testing strings but lacks the advanced automata visualization features of the web app.
+
+### Business Logic
+*   **`logic.py`**: Contains the `LanguageProcessor` class. This is the bridge between the UI and the AI services. It manages the state of the "current language" being analyzed and orchestrates string testing against that language.
+*   **`ai_handler.py`**: Handles all interactions with the Google Gemini API. It manages API key configuration and constructs the specific prompts used to analyze natural language descriptions of formal languages.
+*   **`automata_logic.py`**: A specialized handler for deterministic automata operations. It utilizes the `automata-lib` library to perform mathematically precise conversions (e.g., NFA→DFA, Minimization) and uses `graphviz` to generate visual diagrams.
+
+### Configuration & Data
+*   **`requirements.txt`**: Lists all Python libraries required to run the project (e.g., `streamlit`, `google-generativeai`, `automata-lib`).
+*   **`packages.txt`**: Used by deployment platforms (like Streamlit Cloud) to install system-level dependencies. It lists `graphviz`.
+*   **`test_inputs.csv`**: A sample CSV file containing a list of strings (e.g., `001`, `111`, `010`). This can be used to demonstrate the "Batch Testing" feature.
+*   **`check_capabilities.py`**: A utility script used during development to verify that the `automata-lib` library is correctly installed and supports the required operations (like NFA creation and DFA conversion).
+
+## Configuration
+
+The application requires a **Google Gemini API Key**.
+*   You can set it via the environment variable `GOOGLE_API_KEY`.
+*   Alternatively, you can enter it directly in the application sidebar.
