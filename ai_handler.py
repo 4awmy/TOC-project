@@ -3,6 +3,11 @@ import google.generativeai as genai
 import json
 import typing
 from typing import TypedDict, Optional
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class LanguageAnalysis(TypedDict):
     is_regular: bool
@@ -15,6 +20,7 @@ class StringCheck(TypedDict):
 
 class AIHandler:
     def __init__(self):
+        self.model_name = "gemini-1.5-flash" # Default
         api_key = os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             # We will handle missing key gracefully in the UI, but here we can warn or raise
@@ -22,10 +28,63 @@ class AIHandler:
         else:
             self.configure_api(api_key)
 
+    def _resolve_model_name(self) -> str:
+        """
+        Dynamically finds the best available model name to avoid 404 errors.
+        """
+        try:
+            logger.info("Listing available models...")
+            # List models and filter for those that support generateContent
+            available_models = list(genai.list_models())
+
+            candidates = [
+                "gemini-1.5-flash",
+                "gemini-1.5-flash-latest",
+                "gemini-1.5-flash-001",
+                "gemini-flash-latest",
+                "gemini-1.5-pro",
+                "gemini-pro"
+            ]
+
+            available_names = set()
+            raw_names = {}
+
+            for m in available_models:
+                if "generateContent" in m.supported_generation_methods:
+                    name = m.name
+                    # Usually 'models/gemini-1.5-flash'
+                    if name.startswith("models/"):
+                        stripped = name[7:]
+                    else:
+                        stripped = name
+
+                    available_names.add(stripped)
+                    raw_names[stripped] = name
+
+            logger.info(f"Available models: {list(available_names)}")
+
+            for candidate in candidates:
+                if candidate in available_names:
+                    selected = raw_names[candidate]
+                    logger.info(f"Selected model: {selected}")
+                    return selected
+
+            # Fallback if no candidates match
+            logger.warning("No preferred model found. Falling back to default.")
+            return "gemini-1.5-flash"
+
+        except Exception as e:
+            logger.error(f"Error listing models: {e}. using default.")
+            return "gemini-1.5-flash"
+
     def configure_api(self, api_key: str):
         genai.configure(api_key=api_key)
-        # Using 'gemini-1.5-flash' for stability and structured output support
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+
+        # Resolve model name dynamically
+        self.model_name = self._resolve_model_name()
+
+        # Initialize model
+        self.model = genai.GenerativeModel(self.model_name)
         self.ready = True
 
     def analyze_language(self, description: str) -> dict:
@@ -58,7 +117,7 @@ class AIHandler:
             # Response text should be valid JSON matching the schema
             return json.loads(response.text)
         except Exception as e:
-            return {"error": str(e)}
+            return {"error": f"Error with model {self.model_name}: {str(e)}"}
 
     def explain_rejection(self, description: str, string: str) -> str:
         """
