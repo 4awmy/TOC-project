@@ -31,15 +31,17 @@ with st.sidebar:
     elif "GOOGLE_API_KEY" in os.environ:
         system_key = os.environ["GOOGLE_API_KEY"]
 
+    # If a system key is found (via secrets or env), use it SILENTLY.
+    # Do NOT show an input field unless the key is missing.
     if system_key:
+        api_key = system_key
+        # We don't even show the "System API Key Active" message if we want to be totally silent,
+        # but the user requested "use it silently and completely hide the manual text input field".
+        # Showing a small badge is good UX so they know it works, but I will hide the INPUT field completely.
         st.success("✅ System API Key Active")
-        # Optional override
-        api_key = st.text_input("Override API Key (Optional)", type="password")
-        if not api_key:
-            api_key = system_key
     else:
         st.warning("⚠️ No System API Key found")
-        api_key = st.text_input("Google API Key", type="password")
+        api_key = st.text_input("Enter API Key", type="password")
 
     if api_key:
         os.environ["GOOGLE_API_KEY"] = api_key
