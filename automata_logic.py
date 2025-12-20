@@ -169,29 +169,13 @@ class AutomataHandler:
                     # Missing transition
                     pass
 
-        # Ensure the DFA is complete to satisfy automata-lib validation
-        # If there are missing transitions, add a Sink state.
-        sink_state = frozenset({"Sink"})
-        needs_sink = False
-
-        for state in new_states:
-            if state not in new_transitions:
-                new_transitions[state] = {}
-            for symbol in input_symbols:
-                if symbol not in new_transitions[state]:
-                    needs_sink = True
-                    new_transitions[state][symbol] = sink_state
-
-        if needs_sink:
-            new_states.add(sink_state)
-            new_transitions[sink_state] = {s: sink_state for s in input_symbols}
-
         minimized_dfa = DFA(
             states=new_states,
             input_symbols=set(input_symbols),
             transitions=new_transitions,
             initial_state=new_start_state,
-            final_states=new_final_states
+            final_states=new_final_states,
+            allow_partial=True
         )
 
         return minimized_dfa, steps
