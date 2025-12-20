@@ -35,7 +35,9 @@ class AutomataHandler:
 
     @staticmethod
     def nfa_to_dfa(nfa_obj):
-        return DFA.from_nfa(nfa_obj)
+        # retain_names=True ensures states are frozensets of original states (e.g. {q0, q1})
+        # minify=False ensures we see the full powerset construction result before minimization
+        return DFA.from_nfa(nfa_obj, retain_names=True, minify=False)
 
     @staticmethod
     def minimize_dfa(dfa_obj):
