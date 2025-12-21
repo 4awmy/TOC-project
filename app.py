@@ -292,30 +292,44 @@ with tab2:
                 st.session_state.trans_df = pd.DataFrame.from_dict(data, orient='index', columns=example_alphabet)
 
             elif source_type == "DFA":
-                # Example: Non-minimized DFA for (a|b)*abb
-                # States q0, q1, q2, q3, q4 where q2 and q4 might be equivalent or similar structure
-                # Let's use a simpler one with clear redundancy.
-                # A DFA accepting strings with odd number of 0s.
-                # Minimal: 2 states. We will give it 4 states.
-                # q0 (start, even) --0--> q1 (odd)
-                # q1 (odd, final) --0--> q0
-                # q2 (equivalent to q0) --0--> q3 (odd)
-                # q3 (equivalent to q1) --0--> q2
-                # 1s self loop everywhere.
+                # Check target type to load appropriate example
+                if target_type == "Minimized DFA":
+                    # Example: Complex 8-state DFA for minimization (Standard Moore's Alg Example)
+                    ex_states = ["A", "B", "C", "D", "E", "F", "G", "H"]
+                    ex_alphabet = ["0", "1"]
 
-                ex_states = ["q0", "q1", "q2", "q3"]
-                ex_alphabet = ["0", "1"]
+                    # C is Final state (typical textbook example)
+                    # Start state A
+                    data = {
+                        "A": ["B", "F"],
+                        "B": ["G", "C"],
+                        "C": ["A", "C"],
+                        "D": ["C", "G"],
+                        "E": ["H", "F"],
+                        "F": ["C", "G"],
+                        "G": ["G", "E"],
+                        "H": ["G", "C"]
+                    }
+                    st.session_state.states_input = ", ".join(ex_states)
+                    st.session_state.alphabet_input = ", ".join(ex_alphabet)
+                    st.session_state.trans_df = pd.DataFrame.from_dict(data, orient='index', columns=ex_alphabet)
 
-                data = {
-                    "q0": ["q1", "q0"], # even
-                    "q1": ["q0", "q1"], # odd (final)
-                    "q2": ["q3", "q2"], # even copy
-                    "q3": ["q2", "q3"]  # odd copy (final)
-                }
+                else:
+                    # Example: Simple 2-state DFA for Regex conversion (Arden's Theorem Example)
+                    # A -> 0:A, 1:B
+                    # B -> 0:B, 1:A
+                    # A is start, B is final
+                    ex_states = ["A", "B"]
+                    ex_alphabet = ["0", "1"]
 
-                st.session_state.states_input = ", ".join(ex_states)
-                st.session_state.alphabet_input = ", ".join(ex_alphabet)
-                st.session_state.trans_df = pd.DataFrame.from_dict(data, orient='index', columns=ex_alphabet)
+                    data = {
+                        "A": ["A", "B"],
+                        "B": ["B", "A"]
+                    }
+
+                    st.session_state.states_input = ", ".join(ex_states)
+                    st.session_state.alphabet_input = ", ".join(ex_alphabet)
+                    st.session_state.trans_df = pd.DataFrame.from_dict(data, orient='index', columns=ex_alphabet)
 
             elif source_type == "Regex":
                  st.session_state.regex_input_field = "(a|b)*abb"
