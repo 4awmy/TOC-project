@@ -293,6 +293,15 @@ class AutomataHandler:
         return NFA.from_regex(regex_str)
 
     @staticmethod
+    def regex_to_dfa(regex_str):
+        """
+        Converts Regex -> NFA -> DFA using custom subset construction.
+        """
+        nfa = NFA.from_regex(regex_str)
+        # Use our custom nfa_to_dfa to ensure visible subset states
+        return AutomataHandler.nfa_to_dfa(nfa)
+
+    @staticmethod
     def dfa_to_regex(dfa_obj):
         gnfa = GNFA.from_dfa(dfa_obj)
         return gnfa.to_regex()
