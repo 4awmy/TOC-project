@@ -5,8 +5,6 @@ import typing
 from typing import TypedDict, Optional
 import logging
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class LanguageAnalysis(TypedDict):
