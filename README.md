@@ -20,7 +20,10 @@ A powerful AI-powered tool for exploring Theory of Computation concepts, includi
     *   **Subset Construction Algorithm (NFA $\to$ DFA)**:
         *   The project implements a **manual subset construction** algorithm.
         *   It computes the **epsilon-closure** for each state.
-        *   It tracks new states as sets of NFA states (e.g., `{q0, q1}`) to explicitly show how the DFA is built.
+        *   It tracks new states as sets of NFA states (e.g., `{q0, q1}`) to explicitly show how the DFA is built, rather than renaming them to arbitrary integers.
+    *   **Regex $\to$ DFA**:
+        *   Implements a chained conversion pipeline: **Regex $\to$ NFA $\to$ DFA**.
+        *   This combines the parsing power of the library with the custom subset construction logic to ensure educational clarity in the final output.
     *   **Kleene's Theorem**: Implementation of conversions between Regular Expressions and Finite Automata.
 *   **DFA Minimization (Moore's Algorithm)**:
     *   The project implements an $O(n^2)$ algorithm to minimize DFAs by finding groups of equivalent states.
@@ -35,20 +38,26 @@ A powerful AI-powered tool for exploring Theory of Computation concepts, includi
 *   **Logic:**
     *   **Session State Management**: Uses `st.session_state` to persist data (automata objects, analysis results, step logs) across browser reruns. This ensures the user's workflow is preserved during interaction.
     *   **Tab-Based Layout**: Organizes the UI into "Define & Test Language" (AI + Batch Testing) and "Automata Studio" (Structural Operations).
-    *   **System API Key**: Implements a secure priority system (`st.secrets` > `os.environ` > User Input) to load the Google API Key.
-    *   **Robust Error Handling**: Prevents crashes (e.g., `InfiniteLanguageException`) by using explicit state checks instead of implicit boolean evaluations.
+    *   **Security & API Priority**: Implements a secure priority system for loading the Google API Key:
+        1.  `st.secrets` (Production/Cloud)
+        2.  `os.environ` (Local Environment)
+        3.  User Input (Sidebar Fallback)
+        *   *Note*: If a system key is found, the manual input field is **completely hidden** from the UI to prevent accidental exposure.
+    *   **Context-Aware Examples**: The "Load Example" button dynamically loads different datasets based on the target operation (e.g., loading an 8-state DFA specifically designed for Moore's Algorithm when "Minimized DFA" is selected).
 
 ### 2. `automata_logic.py` (The Mathematical Engine)
 **Role:** Handles all deterministic operations and visualization. This file contains the core algorithmic implementations.
 *   **Logic:**
     *   **`nfa_to_dfa` (Manual Subset Construction)**:
-        *   Instead of using the library's default conversion (which renames states to integers), this function manually implements the **Powerset Construction** algorithm.
+        *   Instead of using the library's default conversion, this function manually implements the **Powerset Construction** algorithm.
         *   It calculates the epsilon-closure of states and iteratively finds reachable subsets.
         *   **Goal:** To preserve the educational value by showing states labeled as `{q0, q1}`.
     *   **`minimize_dfa_with_steps` (Moore's Algorithm)**:
         *   Implements **Moore's Algorithm** for DFA minimization.
         *   Iteratively calculates $k$-equivalence partitions (0-equiv, 1-equiv...) and logs each step for the user.
         *   **Partial DFA Support**: Constructs the final DFA with `allow_partial=True` to handle cases where transitions are missing (implicit dead states), avoiding validation errors without adding confusing "Sink" states to the diagram.
+    *   **`regex_to_dfa`**:
+        *   Parses the Regex into an NFA using the library, then passes it through the custom `nfa_to_dfa` logic to ensure the final DFA retains readable subset states.
     *   **`get_graphviz_source` (Custom Visualization)**:
         *   A custom rendering engine that generates DOT source code directly.
         *   **Sanitization**: Detects complex state labels (like `frozenset({'q0', 'q1'})` or `['q0', 'q1']`) and converts them into clean set notation (`{q0, q1}`).
@@ -57,8 +66,8 @@ A powerful AI-powered tool for exploring Theory of Computation concepts, includi
 ### 3. `ai_handler.py` (The AI Integration)
 **Role:** Manages communication with Google's Gemini API.
 *   **Logic:**
-    *   **Prompt Engineering**: Constructs a specific system prompt that forces the AI to respond in JSON format, ensuring predictable parsing.
-    *   **Context Injection**: "You are a Theory of Computation expert..." ensures the AI uses precise terminology and focuses on Formal Languages.
+    *   **Dynamic Model Resolution**: Implements `_resolve_model_name` to fix common "404 Not Found" errors by checking available models at runtime (`list_models`) and prioritizing `gemini-1.5-flash`.
+    *   **Structured Outputs**: Uses `typing.TypedDict` and `response_schema` to force the AI to return strict JSON matching defined schemas (`LanguageAnalysis`, `StringCheck`). This eliminates parsing errors common with free-form LLM responses.
     *   **Lazy Configuration**: The `configure_api` method allows the API key to be set at runtime (via the UI) rather than requiring it at startup.
 
 ### 4. `logic.py` (Business Logic / Orchestration)
@@ -76,6 +85,7 @@ A powerful AI-powered tool for exploring Theory of Computation concepts, includi
 *   **`packages.txt`**: Lists system-level binaries (`graphviz`) required by the deployment environment.
 *   **`main.py`**: The legacy CLI version of the tool.
 *   **`test_inputs.csv`**: Sample data for the Batch Testing feature.
+*   **`test_model_resolution.py`**: Unit test script used to verify the AI model selection logic.
 
 ---
 
