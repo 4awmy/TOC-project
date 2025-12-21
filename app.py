@@ -219,7 +219,7 @@ with tab2:
         elif source_type == "DFA":
             target_options = ["Regex", "Minimized DFA"]
         elif source_type == "Regex":
-            target_options = ["NFA"]
+            target_options = ["NFA", "DFA"]
 
         target_type = st.selectbox("To", target_options)
 
@@ -416,6 +416,9 @@ with tab2:
             elif source_type == "Regex":
                 if target_type == "NFA":
                     result_obj = handler.regex_to_nfa(regex_input)
+                    st.session_state["automata_result"] = result_obj
+                elif target_type == "DFA":
+                    result_obj = handler.regex_to_dfa(regex_input)
                     st.session_state["automata_result"] = result_obj
 
         except Exception as e:
