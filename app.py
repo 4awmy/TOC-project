@@ -463,15 +463,29 @@ with tab2:
         # Add Chainable Minimization Option (Merged from main branch ideas, but using safe variables)
         if isinstance(result_obj, DFA):
             st.divider()
-            st.markdown("### Minimize this Result")
-            if st.button("Minimize this DFA", type="primary"):
-                try:
-                    with st.spinner("Minimizing..."):
-                        minimized_dfa, steps = handler.minimize_dfa_with_steps(result_obj)
+            st.markdown("### DFA Operations")
 
-                        # Store result to persist
-                        st.session_state["automata_result"] = minimized_dfa
-                        st.session_state["automata_steps"] = steps
-                        st.rerun() # Rerun to update the display with minimized version
-                except Exception as e:
-                    st.error(f"Minimization failed: {e}")
+            op_col1, op_col2 = st.columns(2)
+
+            with op_col1:
+                if st.button("Minimize this DFA", type="primary"):
+                    try:
+                        with st.spinner("Minimizing..."):
+                            minimized_dfa, steps = handler.minimize_dfa_with_steps(result_obj)
+
+                            # Store result to persist
+                            st.session_state["automata_result"] = minimized_dfa
+                            st.session_state["automata_steps"] = steps
+                            st.rerun() # Rerun to update the display with minimized version
+                    except Exception as e:
+                        st.error(f"Minimization failed: {e}")
+
+            with op_col2:
+                if st.button("Convert to Regex"):
+                    try:
+                        with st.spinner("Converting..."):
+                            regex_result = handler.dfa_to_regex(result_obj)
+                            st.session_state["automata_regex"] = regex_result
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"Conversion failed: {e}")
