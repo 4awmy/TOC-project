@@ -286,7 +286,7 @@ class AutomataHandler:
     def get_dfa_table(dfa_obj):
         """
         Returns a pandas DataFrame representation of the DFA transitions.
-        Sorted: Initial state first, then all subsequent states sorted alphabetically.
+        Sorted: BFS order (Initial State first, then reachable states by discovery).
         Format: Clean set notation for states (e.g., {q0, q1}) if applicable.
         """
         def format_state(s):
@@ -316,27 +316,39 @@ class AutomataHandler:
 
         df = pd.DataFrame.from_dict(data, orient='index')
 
-        # Sorting Logic
-        initial_state_label = format_state(dfa_obj.initial_state)
+        # Determine BFS order using raw states first (to trace logic), then convert to labels
+        start = dfa_obj.initial_state
+        visited = {start}
+        queue = [start]
+        bfs_order = [start]
 
-        # Get all labels
-        all_labels = list(df.index)
+        # Sort symbols for deterministic traversal
+        sorted_symbols = sorted(list(dfa_obj.input_symbols))
 
-        # Remove initial state if present
-        if initial_state_label in all_labels:
-            all_labels.remove(initial_state_label)
+        while queue:
+            current = queue.pop(0)
+            for symbol in sorted_symbols:
+                target = dfa_obj.transitions[current].get(symbol)
+                if target is not None and target not in visited:
+                    visited.add(target)
+                    queue.append(target)
+                    bfs_order.append(target)
 
-        # Sort remaining states alphabetically
-        all_labels.sort()
+        # Identify unreachable states and sort them alphabetically
+        all_states = dfa_obj.states
+        unreachable = list(all_states - visited)
+        unreachable.sort(key=lambda s: str(s))
 
-        # Construct final order: [Initial] + [Sorted Others]
-        final_order = []
-        if initial_state_label in df.index:
-            final_order.append(initial_state_label)
-        final_order.extend(all_labels)
+        # Final ordering: BFS reachable + Sorted unreachable
+        final_order_objs = bfs_order + unreachable
 
-        # Reindex rows
-        df = df.reindex(final_order)
+        # Convert objects to formatted labels
+        final_order_labels = [format_state(s) for s in final_order_objs]
+
+        # Reindex rows based on computed order
+        # Only keep labels that actually exist in the dataframe (safety check)
+        valid_labels = [lbl for lbl in final_order_labels if lbl in df.index]
+        df = df.reindex(valid_labels)
 
         # Sort columns (alphabet)
         df = df.reindex(sorted(df.columns), axis=1)
