@@ -273,6 +273,7 @@ class AutomataHandler:
     def get_dfa_table(dfa_obj):
         """
         Returns a pandas DataFrame representation of the DFA transitions.
+        Sorted by BFS order starting from the initial state, followed by unreachable states.
         """
         data = {}
         for state in dfa_obj.states:
@@ -283,9 +284,42 @@ class AutomataHandler:
                 data[state_label][symbol] = str(target)
 
         df = pd.DataFrame.from_dict(data, orient='index')
-        # Sort columns (alphabet) and rows (states) for neatness
+
+        # Determine BFS order for rows
+        start = dfa_obj.initial_state
+        visited = {start}
+        queue = [start]
+        bfs_order = [start]
+
+        # Sort symbols for deterministic traversal
+        sorted_symbols = sorted(list(dfa_obj.input_symbols))
+
+        while queue:
+            current = queue.pop(0)
+            for symbol in sorted_symbols:
+                target = dfa_obj.transitions[current].get(symbol)
+                if target is not None and target not in visited:
+                    visited.add(target)
+                    queue.append(target)
+                    bfs_order.append(target)
+
+        # Identify unreachable states and sort them alphabetically
+        all_states = dfa_obj.states
+        unreachable = list(all_states - visited)
+        unreachable.sort(key=lambda s: str(s))
+
+        # Final ordering: BFS reachable + Sorted unreachable
+        final_order_objs = bfs_order + unreachable
+        final_order_labels = [str(s) for s in final_order_objs]
+
+        # Sort columns (alphabet)
         df = df.reindex(sorted(df.columns), axis=1)
-        df = df.sort_index()
+
+        # Reindex rows based on computed order
+        # Only keep labels that actually exist in the dataframe (safety check)
+        valid_labels = [lbl for lbl in final_order_labels if lbl in df.index]
+        df = df.reindex(valid_labels)
+
         return df
 
     @staticmethod
