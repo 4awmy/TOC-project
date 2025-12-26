@@ -286,52 +286,60 @@ class AutomataHandler:
     def get_dfa_table(dfa_obj):
         """
         Returns a pandas DataFrame representation of the DFA transitions.
-        Sorted by BFS order starting from the initial state, followed by unreachable states.
+        Sorted: Initial state first, then all subsequent states sorted alphabetically.
+        Format: Clean set notation for states (e.g., {q0, q1}) if applicable.
         """
+        def format_state(s):
+            """Sanitize state label to look cleaner (e.g. remove frozenset(...) or list-style strings)."""
+            lbl = str(s)
+            # Handle frozenset({...})
+            if lbl.startswith("frozenset({") and lbl.endswith("})"):
+                return "{" + lbl[11:-2] + "}"
+            # Handle list style ['q0', 'q1']
+            if lbl.startswith("['") and lbl.endswith("']"):
+                return "{" + lbl[1:-1].replace("'", "") + "}"
+            # Handle empty list style []
+            if lbl == "[]":
+                return "{}"
+            # Handle explicit "{}" string
+            if lbl == "{}":
+                return "{}"
+            return lbl
+
         data = {}
         for state in dfa_obj.states:
-            state_label = str(state)
+            state_label = format_state(state)
             data[state_label] = {}
             for symbol in dfa_obj.input_symbols:
                 target = dfa_obj.transitions[state].get(symbol, "{}")
-                data[state_label][symbol] = str(target)
+                data[state_label][symbol] = format_state(target)
 
         df = pd.DataFrame.from_dict(data, orient='index')
 
-        # Determine BFS order for rows
-        start = dfa_obj.initial_state
-        visited = {start}
-        queue = [start]
-        bfs_order = [start]
+        # Sorting Logic
+        initial_state_label = format_state(dfa_obj.initial_state)
 
-        # Sort symbols for deterministic traversal
-        sorted_symbols = sorted(list(dfa_obj.input_symbols))
+        # Get all labels
+        all_labels = list(df.index)
 
-        while queue:
-            current = queue.pop(0)
-            for symbol in sorted_symbols:
-                target = dfa_obj.transitions[current].get(symbol)
-                if target is not None and target not in visited:
-                    visited.add(target)
-                    queue.append(target)
-                    bfs_order.append(target)
+        # Remove initial state if present
+        if initial_state_label in all_labels:
+            all_labels.remove(initial_state_label)
 
-        # Identify unreachable states and sort them alphabetically
-        all_states = dfa_obj.states
-        unreachable = list(all_states - visited)
-        unreachable.sort(key=lambda s: str(s))
+        # Sort remaining states alphabetically
+        all_labels.sort()
 
-        # Final ordering: BFS reachable + Sorted unreachable
-        final_order_objs = bfs_order + unreachable
-        final_order_labels = [str(s) for s in final_order_objs]
+        # Construct final order: [Initial] + [Sorted Others]
+        final_order = []
+        if initial_state_label in df.index:
+            final_order.append(initial_state_label)
+        final_order.extend(all_labels)
+
+        # Reindex rows
+        df = df.reindex(final_order)
 
         # Sort columns (alphabet)
         df = df.reindex(sorted(df.columns), axis=1)
-
-        # Reindex rows based on computed order
-        # Only keep labels that actually exist in the dataframe (safety check)
-        valid_labels = [lbl for lbl in final_order_labels if lbl in df.index]
-        df = df.reindex(valid_labels)
 
         return df
 
