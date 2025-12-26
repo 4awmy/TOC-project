@@ -3,8 +3,17 @@ from automata.fa.dfa import DFA
 from automata.fa.gnfa import GNFA
 import graphviz
 import pandas as pd
+import string
 
 class AutomataHandler:
+    @staticmethod
+    def _generate_label(index):
+        """Generates labels A, B, ..., Z, A1, B1, ..."""
+        if index < 26:
+            return string.ascii_uppercase[index]
+        else:
+            return f"{string.ascii_uppercase[index % 26]}{index // 26}"
+
     @staticmethod
     def create_nfa(states, alphabet, transitions, start_state, final_states):
         """
@@ -57,6 +66,7 @@ class AutomataHandler:
     def nfa_to_dfa(nfa_obj):
         """
         Converts an NFA to a DFA using the Subset Construction Algorithm.
+        Returns: (dfa_object, mapping_dict)
         """
         dfa_states = set()
         dfa_transitions = {}
@@ -64,7 +74,11 @@ class AutomataHandler:
 
         # The initial state of the DFA is the epsilon-closure of the NFA's initial state
         initial_dfa_state = frozenset(AutomataHandler._get_epsilon_closure(nfa_obj, {nfa_obj.initial_state}))
-        dfa_initial_state = initial_dfa_state
+
+        # Mapping logic: Discovery order
+        mapping = {} # frozenset -> "A"
+        state_list_ordered = [initial_dfa_state]
+        mapping[initial_dfa_state] = AutomataHandler._generate_label(0)
 
         unprocessed_states = [initial_dfa_state]
         dfa_states.add(initial_dfa_state)
@@ -79,7 +93,7 @@ class AutomataHandler:
 
             dfa_transitions[current_dfa_state_frozenset] = {}
 
-            for symbol in nfa_obj.input_symbols:
+            for symbol in sorted(list(nfa_obj.input_symbols)):
                 # Epsilon transitions are not part of the DFA's alphabet
                 if symbol == '':
                     continue
@@ -91,33 +105,34 @@ class AutomataHandler:
 
                 # 2. Compute the epsilon-closure of this new set of states
                 next_dfa_state_set = AutomataHandler._get_epsilon_closure(nfa_obj, next_nfa_states)
-
                 next_dfa_state_frozenset = frozenset(next_dfa_state_set)
 
                 # Add the transition to the DFA
                 dfa_transitions[current_dfa_state_frozenset][symbol] = next_dfa_state_frozenset
 
-                # If this is a new DFA state, add it to our list to be processed
+                # If this is a new DFA state, process it
                 if next_dfa_state_frozenset not in dfa_states:
                     dfa_states.add(next_dfa_state_frozenset)
                     unprocessed_states.append(next_dfa_state_frozenset)
 
-        # The library expects state names to be strings for the DFA constructor,
-        # but the logic requires sets for processing. We'll convert the frozensets
-        # to a consistent, readable string representation for the final object.
-        state_map = {fs: str(sorted(list(fs))) if fs else "{}" for fs in dfa_states}
+                    # Assign next available label
+                    new_label = AutomataHandler._generate_label(len(mapping))
+                    mapping[next_dfa_state_frozenset] = new_label
+                    state_list_ordered.append(next_dfa_state_frozenset)
 
-        final_dfa_obj_states = set(state_map.values())
-        final_dfa_obj_initial_state = state_map[dfa_initial_state]
-        final_dfa_obj_final_states = {state_map[fs] for fs in dfa_final_states}
+        # Construct final DFA with Mapped Names (A, B, C...)
+        final_dfa_obj_states = set(mapping.values())
+        final_dfa_obj_initial_state = mapping[initial_dfa_state]
+        final_dfa_obj_final_states = {mapping[fs] for fs in dfa_final_states}
         final_dfa_obj_transitions = {}
 
         for state, transitions in dfa_transitions.items():
-            final_dfa_obj_transitions[state_map[state]] = {
-                symbol: state_map[target] for symbol, target in transitions.items()
+            mapped_state = mapping[state]
+            final_dfa_obj_transitions[mapped_state] = {
+                symbol: mapping[target] for symbol, target in transitions.items()
             }
 
-        return DFA(
+        dfa = DFA(
             states=final_dfa_obj_states,
             input_symbols=nfa_obj.input_symbols - {''}, # Remove epsilon from DFA alphabet
             transitions=final_dfa_obj_transitions,
@@ -125,6 +140,8 @@ class AutomataHandler:
             final_states=final_dfa_obj_final_states,
             allow_partial=True
         )
+
+        return dfa, mapping
 
     @staticmethod
     def minimize_dfa(dfa_obj):
@@ -134,7 +151,7 @@ class AutomataHandler:
     def minimize_dfa_with_steps(dfa_obj):
         """
         Minimizes the DFA and returns the equivalence steps (Moore's Algorithm).
-        Returns: (minimized_dfa, steps_list)
+        Returns: (minimized_dfa, steps_list, mapping_dict)
         Manual construction of DFA guarantees consistency with the steps shown.
         """
         # 1. Initialize Equivalence 0 (Final and Non-Final)
@@ -160,34 +177,23 @@ class AutomataHandler:
                     continue
 
                 # Check consistency within the group
-                # Two states u, v are k+1 equivalent if for all symbols 'a',
-                # delta(u, a) and delta(v, a) are in the same k-equivalence group.
-
-                # Map each state to a signature based on which group its transitions land in
                 sub_groups = {}
                 for state in group:
                     signature = []
                     for symbol in input_symbols:
-                        # Handle partial DFAs (missing transitions go to sink)
                         target = dfa_obj.transitions[state].get(symbol)
-
                         if target is None:
-                            # Use -1 to represent implicit sink state
                             signature.append(-1)
                         else:
-                            # Find which partition index this target belongs to
                             found = False
                             for idx, p in enumerate(partitions):
                                 if target in p:
                                     signature.append(idx)
                                     found = True
                                     break
-
                             if not found:
-                                # Target is effectively a dead state not in 'states' set?
                                 signature.append(-2)
                     signature = tuple(signature)
-
                     if signature not in sub_groups:
                         sub_groups[signature] = set()
                     sub_groups[signature].add(state)
@@ -196,9 +202,7 @@ class AutomataHandler:
                     new_partitions.append(subgroup)
 
             k += 1
-            # Sort partitions for consistent output representation
             new_partitions.sort(key=lambda s: min(str(x) for x in s))
-
             steps.append(f"Equivalence {k}: {new_partitions}")
 
             if new_partitions == partitions:
@@ -209,54 +213,63 @@ class AutomataHandler:
         # Construct the new Minimized DFA manually from the final partitions
         # ---------------------------------------------------------------------
 
-        # Map old state -> new partition representative (frozenset)
-        # We will use the frozenset itself as the state label (key) for the new DFA
-        # This preserves the info of which states were merged.
+        # Mapping Logic: Assign A, B, C... to the resulting partitions
+        # We need a consistent order. Let's find the partition containing the start state first.
+        # Then BFS order? Or just sorted partition order?
+        # The prompt asked for "start with zero trace".
+        # We'll use the partition containing initial_state as 'A' (Index 0).
+        # Then order the rest consistently.
 
-        new_states = set()
+        partition_list = [frozenset(p) for p in partitions]
+
+        # Find start partition
+        start_partition = None
+        for p in partition_list:
+            if dfa_obj.initial_state in p:
+                start_partition = p
+                break
+
+        # Create ordered list starting with start_partition
+        ordered_partitions = [start_partition]
+        remaining = [p for p in partition_list if p != start_partition]
+        # Sort remaining to be deterministic (e.g. by smallest element string)
+        remaining.sort(key=lambda s: min(str(x) for x in s))
+        ordered_partitions.extend(remaining)
+
+        mapping = {}
+        for i, p in enumerate(ordered_partitions):
+            mapping[p] = AutomataHandler._generate_label(i)
+
+        # Build DFA
+        new_states = set(mapping.values())
         new_transitions = {}
-        new_start_state = None
+        new_start_state = mapping[start_partition]
         new_final_states = set()
 
         # Helper to find which partition a state belongs to
-        # (This is O(N) but N is small)
         def get_partition(s):
             for p in partitions:
                 if s in p:
                     return frozenset(p)
             return None
 
-        for p in partitions:
-            p_frozen = frozenset(p)
-            new_states.add(p_frozen)
+        for p_frozen in ordered_partitions:
+            mapped_state = mapping[p_frozen]
 
-            # Determine if Start/Final
-            # If any state in p is Start, p is Start
-            if dfa_obj.initial_state in p:
-                new_start_state = p_frozen
-
-            # If any state in p is Final, p is Final (Initial split ensures all are)
-            if not p.isdisjoint(dfa_obj.final_states):
-                new_final_states.add(p_frozen)
+            # Determine if Final
+            if not p_frozen.isdisjoint(dfa_obj.final_states):
+                new_final_states.add(mapped_state)
 
             # Build Transitions
-            # Pick a representative state from the partition to determine behavior
-            rep = next(iter(p))
-            new_transitions[p_frozen] = {}
+            rep = next(iter(p_frozen))
+            new_transitions[mapped_state] = {}
 
             for symbol in input_symbols:
                 target = dfa_obj.transitions[rep].get(symbol)
                 if target is not None:
                     target_partition = get_partition(target)
                     if target_partition:
-                        new_transitions[p_frozen][symbol] = target_partition
-                    else:
-                        # Target maps to something outside partitions (Sink/Dead)
-                        # We omit it, keeping it as a partial DFA (implicit sink)
-                        pass
-                else:
-                    # Missing transition
-                    pass
+                        new_transitions[mapped_state][symbol] = mapping[target_partition]
 
         minimized_dfa = DFA(
             states=new_states,
@@ -267,7 +280,7 @@ class AutomataHandler:
             allow_partial=True
         )
 
-        return minimized_dfa, steps
+        return minimized_dfa, steps, mapping
 
     @staticmethod
     def get_dfa_table(dfa_obj):
@@ -330,9 +343,9 @@ class AutomataHandler:
     def regex_to_dfa(regex_str):
         """
         Converts Regex -> NFA -> DFA using custom subset construction.
+        Returns: (dfa, mapping)
         """
         nfa = NFA.from_regex(regex_str)
-        # Use our custom nfa_to_dfa to ensure visible subset states
         return AutomataHandler.nfa_to_dfa(nfa)
 
     @staticmethod

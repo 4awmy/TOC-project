@@ -364,6 +364,8 @@ with tab2:
                 del st.session_state["automata_regex"]
             if "automata_steps" in st.session_state:
                 del st.session_state["automata_steps"]
+            if "automata_mapping" in st.session_state:
+                del st.session_state["automata_mapping"]
 
             if source_type == "NFA":
                 # Parse Table to Transitions Dict
@@ -381,12 +383,13 @@ with tab2:
                 nfa = handler.create_nfa(states, alphabet, transitions, start_state, final_states_sel)
 
                 if target_type == "DFA":
-                    result_obj = handler.nfa_to_dfa(nfa)
+                    result_obj, mapping = handler.nfa_to_dfa(nfa)
                     st.session_state["automata_result"] = result_obj
+                    st.session_state["automata_mapping"] = mapping
 
                 elif target_type == "Regex":
                     # NFA -> DFA -> Regex
-                    temp_dfa = handler.nfa_to_dfa(nfa)
+                    temp_dfa, _ = handler.nfa_to_dfa(nfa)
                     result_str = handler.dfa_to_regex(temp_dfa)
                     st.session_state["automata_regex"] = result_str
 
@@ -405,9 +408,10 @@ with tab2:
                 dfa = handler.create_dfa(states, alphabet, transitions, start_state, final_states_sel)
 
                 if target_type == "Minimized DFA":
-                    result_obj, steps = handler.minimize_dfa_with_steps(dfa)
+                    result_obj, steps, mapping = handler.minimize_dfa_with_steps(dfa)
                     st.session_state["automata_result"] = result_obj
                     st.session_state["automata_steps"] = steps
+                    st.session_state["automata_mapping"] = mapping
 
                 elif target_type == "Regex":
                     result_str = handler.dfa_to_regex(dfa)
@@ -418,8 +422,9 @@ with tab2:
                     result_obj = handler.regex_to_nfa(regex_input)
                     st.session_state["automata_result"] = result_obj
                 elif target_type == "DFA":
-                    result_obj = handler.regex_to_dfa(regex_input)
+                    result_obj, mapping = handler.regex_to_dfa(regex_input)
                     st.session_state["automata_result"] = result_obj
+                    st.session_state["automata_mapping"] = mapping
 
         except Exception as e:
             st.error(f"Error: {e}")
@@ -438,6 +443,25 @@ with tab2:
         result_obj = st.session_state["automata_result"]
 
         st.success("Operation Successful!")
+
+        # Display Mapping Legend if available
+        if st.session_state.get("automata_mapping"):
+            st.subheader("State Legend (Trace)")
+            mapping = st.session_state["automata_mapping"]
+
+            # Convert frozenset/tuples keys to strings for display
+            legend_data = []
+            for original, label in mapping.items():
+                # Clean up the original set representation
+                if isinstance(original, frozenset):
+                    orig_str = "{" + ", ".join(sorted(list(original))) + "}"
+                else:
+                    orig_str = str(original)
+                legend_data.append({"Label": label, "Original States": orig_str})
+
+            # Sort by Label
+            legend_data.sort(key=lambda x: x["Label"])
+            st.table(pd.DataFrame(legend_data))
 
         # Display Table if it's a DFA/NFA
         # Note: We can infer type or just try to display table if it has 'states'
@@ -471,11 +495,12 @@ with tab2:
                 if st.button("Minimize this DFA", type="primary"):
                     try:
                         with st.spinner("Minimizing..."):
-                            minimized_dfa, steps = handler.minimize_dfa_with_steps(result_obj)
+                            minimized_dfa, steps, mapping = handler.minimize_dfa_with_steps(result_obj)
 
                             # Store result to persist
                             st.session_state["automata_result"] = minimized_dfa
                             st.session_state["automata_steps"] = steps
+                            st.session_state["automata_mapping"] = mapping
                             st.rerun() # Rerun to update the display with minimized version
                     except Exception as e:
                         st.error(f"Minimization failed: {e}")
