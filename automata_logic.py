@@ -213,10 +213,10 @@ class AutomataHandler:
         # We will use the frozenset itself as the state label (key) for the new DFA
         # This preserves the info of which states were merged.
 
-        new_states = set()
-        new_transitions = {}
-        new_start_state = None
-        new_final_states = set()
+        temp_states = set()
+        temp_transitions = {}
+        temp_start_state = None
+        temp_final_states = set()
 
         # Helper to find which partition a state belongs to
         # (This is O(N) but N is small)
@@ -228,28 +228,28 @@ class AutomataHandler:
 
         for p in partitions:
             p_frozen = frozenset(p)
-            new_states.add(p_frozen)
+            temp_states.add(p_frozen)
 
             # Determine if Start/Final
             # If any state in p is Start, p is Start
             if dfa_obj.initial_state in p:
-                new_start_state = p_frozen
+                temp_start_state = p_frozen
 
             # If any state in p is Final, p is Final (Initial split ensures all are)
             if not p.isdisjoint(dfa_obj.final_states):
-                new_final_states.add(p_frozen)
+                temp_final_states.add(p_frozen)
 
             # Build Transitions
             # Pick a representative state from the partition to determine behavior
             rep = next(iter(p))
-            new_transitions[p_frozen] = {}
+            temp_transitions[p_frozen] = {}
 
             for symbol in input_symbols:
                 target = dfa_obj.transitions[rep].get(symbol)
                 if target is not None:
                     target_partition = get_partition(target)
                     if target_partition:
-                        new_transitions[p_frozen][symbol] = target_partition
+                        temp_transitions[p_frozen][symbol] = target_partition
                     else:
                         # Target maps to something outside partitions (Sink/Dead)
                         # We omit it, keeping it as a partial DFA (implicit sink)
@@ -257,6 +257,19 @@ class AutomataHandler:
                 else:
                     # Missing transition
                     pass
+
+        # Convert frozensets to string representations for proper display
+        state_map = {fs: str(sorted(list(fs))) if fs else "{}" for fs in temp_states}
+        
+        new_states = set(state_map.values())
+        new_start_state = state_map[temp_start_state]
+        new_final_states = {state_map[fs] for fs in temp_final_states}
+        new_transitions = {}
+        
+        for state, transitions in temp_transitions.items():
+            new_transitions[state_map[state]] = {
+                symbol: state_map[target] for symbol, target in transitions.items()
+            }
 
         minimized_dfa = DFA(
             states=new_states,
@@ -270,9 +283,45 @@ class AutomataHandler:
         return minimized_dfa, steps
 
     @staticmethod
+    def _bfs_state_order(automaton_obj):
+        """
+        Returns states in BFS order starting from the initial state.
+        """
+        from collections import deque
+        
+        visited = set()
+        order = []
+        queue = deque([automaton_obj.initial_state])
+        visited.add(automaton_obj.initial_state)
+        
+        while queue:
+            current = queue.popleft()
+            order.append(current)
+            
+            # Get all transitions from this state
+            if current in automaton_obj.transitions:
+                # Sort symbols for consistent ordering
+                for symbol in sorted(automaton_obj.input_symbols):
+                    target = automaton_obj.transitions[current].get(symbol)
+                    if target and target not in visited:
+                        visited.add(target)
+                        queue.append(target)
+        
+        # Add any unreachable states at the end (sorted)
+        unreachable = sorted([str(s) for s in automaton_obj.states if s not in visited])
+        for state_str in unreachable:
+            for state in automaton_obj.states:
+                if str(state) == state_str and state not in visited:
+                    order.append(state)
+                    break
+        
+        return order
+
+    @staticmethod
     def get_dfa_table(dfa_obj):
         """
         Returns a pandas DataFrame representation of the DFA transitions.
+        States are ordered using BFS starting from the initial state.
         """
         data = {}
         for state in dfa_obj.states:
@@ -283,9 +332,15 @@ class AutomataHandler:
                 data[state_label][symbol] = str(target)
 
         df = pd.DataFrame.from_dict(data, orient='index')
-        # Sort columns (alphabet) and rows (states) for neatness
+        # Sort columns (alphabet) for neatness
         df = df.reindex(sorted(df.columns), axis=1)
-        df = df.sort_index()
+        
+        # Order rows by BFS starting from initial state
+        bfs_order = AutomataHandler._bfs_state_order(dfa_obj)
+        bfs_order_str = [str(s) for s in bfs_order]
+        # Reindex with BFS order, keeping any states that might have been missed
+        df = df.reindex(bfs_order_str)
+        
         return df
 
     @staticmethod
