@@ -122,8 +122,8 @@ Computes the set of all states reachable from a given state via ε-transitions a
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/4awmy/TOC-project.git
-cd TOC-project
+git clone https://github.com/4awmy/AutomataStudio.git
+cd AutomataStudio
 ```
 
 ### 2. Create a Virtual Environment
@@ -189,7 +189,7 @@ If no secret is configured, AutomataStudio will display an API key input field i
 ## 📁 Project Structure
 
 ```
-TOC-project/
+AutomataStudio/
 │
 ├── app.py                  # Main Streamlit application — tab layout, session state, sidebar
 ├── automata_logic.py       # Core algorithm implementations
