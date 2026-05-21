@@ -12,7 +12,7 @@
 
 > **Define automata in plain English. Visualize state machines. Run formal algorithms — all in your browser.**
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://toc-project-c3i3gd6gbc4lk4xjgqviu9.streamlit.app/)
 
 </div>
 
